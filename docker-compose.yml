@@ -1,0 +1,37 @@
+version: '3.1'
+
+services:
+  HelpStudent-redis:
+    image: redis:latest
+    restart: on-failure
+    ports:
+      - "19379:6379"
+
+  HelpStudent-postgres:
+    image: postgres:latest
+    restart: on-failure
+    environment:
+      POSTGRES_DB: hduhelp
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "19432:5432"
+  scholarship-v3-postgres:
+    image: postgres:latest
+    restart: on-failure
+    environment:
+      POSTGRES_DB: hduhelp
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "19431:5432"
+  HelpStudent-mysql:
+    image: mysql:latest
+    restart: on-failure
+    environment:
+      MYSQL_DATABASE: 'picker'
+      MYSQL_USER: 'user'
+      MYSQL_PASSWORD: 'password'
+      MYSQL_ROOT_PASSWORD: 'rootpassword'
+    ports:
+      - "19306:3306"

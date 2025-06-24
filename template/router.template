@@ -1,0 +1,21 @@
+package router
+
+import (
+	"errors"
+   	"github.com/flamego/flamego"
+   	"HelpStudent/core/middleware/response"
+)
+
+func App{{.appNameExport}}Init(e *flamego.Flame) {
+	e.Get("/{{.appName}}/v1", func(r flamego.Render){
+	    response.HTTPSuccess(r, map[string]any{
+            "message": "{{.appName}} Init Success",
+        })
+    })
+
+    e.Get("/{{.appName}}/v1/err", func(r flamego.Render){
+        response.HTTPFail(r, 500000, "{{.appName}} Init test error", errors.New("this is err"))
+    })
+}
+
+func {{.appNameExport}}Group(e *flamego.Flame) {}
