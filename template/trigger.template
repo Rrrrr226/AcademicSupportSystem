@@ -1,0 +1,7 @@
+package appInitialize
+
+import "HelpStudent/internal/app/{{.appName}}"
+
+func init() {
+	apps = append(apps, &{{.appName}}.{{.appNameExport}}{Name: "{{.appNameExport}} module"})
+}

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户信息导入系统</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .upload-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-top: 30px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .file-input {
+            display: flex;
+            align-items: center;
+        }
+
+        .file-input input[type="file"] {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+
+        .error-list {
+            margin-top: 15px;
+            padding-left: 20px;
+        }
+
+        .error-list li {
+            margin-bottom: 5px;
+        }
+
+        .instructions {
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin-bottom: 25px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        .instructions ol {
+            padding-left: 20px;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress {
+            height: 100%;
+            background-color: #3498db;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .template-download {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .template-download a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .template-download a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="upload-container">
+    <h1>用户信息导入系统</h1>
+
+    <div class="instructions">
+        <h3>使用说明</h3>
+        <ol>
+            <li>下载并填写用户信息模板文件</li>
+            <li>确保工号(StaffId)唯一且不超过19个字符</li>
+            <li>所需科目(NeedSubjects)使用英文逗号分隔</li>
+            <li>系统将自动更新已存在的用户信息</li>
+        </ol>
+    </div>
+
+    <div class="template-download">
+        <a href="/template/user_import_template.xlsx" download>下载导入模板文件</a>
+    </div>
+
+    <form id="uploadForm" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="userFile">选择用户信息文件 (.xlsx)</label>
+            <div class="file-input">
+                <input type="file" id="userFile" name="user_file" accept=".xlsx" required>
+            </div>
+        </div>
+
+        <button type="submit" id="submitBtn">导入用户信息</button>
+    </form>
+
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-bar">
+            <div class="progress" id="progressBar"></div>
+        </div>
+        <div class="progress-text" id="progressText">准备上传...</div>
+    </div>
+
+    <div class="result" id="result"></div>
+</div>
+
+<script>
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const fileInput = document.getElementById('userFile');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultDiv = document.getElementById('result');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+
+        // 重置UI状态
+        resultDiv.style.display = 'none';
+        resultDiv.innerHTML = '';
+        submitBtn.disabled = true;
+        submitBtn.textContent = '上传中...';
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        progressText.textContent = '准备上传...';
+
+        const formData = new FormData(this);
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percent + '%';
+                progressText.textContent = '上传中: ' + percent + '%';
+            }
+        });
+
+        xhr.addEventListener('load', function() {
+            progressText.textContent = '处理中...';
+
+            try {
+                const data = JSON.parse(xhr.responseText);
+
+                resultDiv.className = 'result ' + (data.success ? 'success' : 'error');
+
+                let html = data.success
+                    ? `<h3>导入完成</h3>
+                           <p>文件: <strong>${data.filename}</strong></p>
+                           <p>总记录数: <strong>${data.total}</strong></p>
+                           <p>成功: <strong style="color:green">${data.successCount}</strong></p>
+                           <p>失败: <strong style="color:red">${data.failCount}</strong></p>`
+                    : `<h3>导入失败</h3>
+                           <p>${data.error}</p>`;
+
+                if (data.errorDetails && data.errorDetails.length > 0) {
+                    html += `<div class="error-list">
+                                    <h4>错误详情:</h4>
+                                    <ul>`;
+
+                    data.errorDetails.forEach(msg => {
+                        html += `<li>${msg}</li>`;
+                    });
+
+                    html += `</ul></div>`;
+                }
+
+                resultDiv.innerHTML = html;
+                resultDiv.style.display = 'block';
+
+            } catch (e) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '<h3>错误</h3><p>解析服务器响应失败</p>';
+                resultDiv.style.display = 'block';
+            }
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = '导入用户信息';
+            progressContainer.style.display = 'none';
+        });
+
+        xhr.addEventListener('error', function() {
+            resultDiv.className = 'result error';
+            resultDiv.innerHTML = '<h3>错误</h3><p>上传过程中发生网络错误</p>';
+            resultDiv.style.display = 'block';
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = '导入用户信息';
+            progressContainer.style.display = 'none';
+        });
+
+        xhr.open('POST', '/api/upload/users', true);
+        xhr.send(formData);
+    });
+
+    // 文件选择变化时显示文件名
+    document.getElementById('userFile').addEventListener('change', function(e) {
+        const fileName = e.target.files[0] ? e.target.files[0].name : '未选择文件';
+        document.getElementById('progressText').textContent = '待上传文件: ' + fileName;
+    });
+</script>
+</body>
+</html>

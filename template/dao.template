@@ -1,0 +1,16 @@
+package dao
+
+import (
+	"context"
+	"gorm.io/gorm"
+	"HelpStudent/internal/app/{{.appName}}/model"
+)
+
+type {{.appName}} struct {
+	*gorm.DB
+}
+
+func (u *{{.appName}}) Init(db *gorm.DB) (err error) {
+	u.DB = db
+	return db.AutoMigrate(&model.{{.appNameExport}}{})
+}
