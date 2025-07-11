@@ -1,6 +1,8 @@
 package server
 
 import (
+	subject "HelpStudent/internal/app/subject/dao"
+	users "HelpStudent/internal/app/users/dao"
 	"context"
 	"fmt"
 	"net"
@@ -175,6 +177,14 @@ func setUp() {
 // 存储介质连接
 func loadStore() {
 	engine.MainPG = pg.MustNewPGOrm(config.GetConfig().MainPostgres)
+	if err := users.InitPG(engine.MainPG.GetOrm()); err != nil {
+		logx.SystemLogger.Errorw("用户DAO初始化失败", zap.Error(err))
+		os.Exit(1)
+	}
+	if err := subject.InitPG(engine.MainPG.GetOrm()); err != nil {
+		logx.SystemLogger.Errorw("用户DAO初始化失败", zap.Error(err))
+		os.Exit(1)
+	}
 	engine.SKLMySQL = mysql.MustNewMysqlOrm(config.GetConfig().SKLMysql)
 	engine.MainCache = rds.MustNewRedis(config.GetConfig().MainCache)
 	err := fileServer.InitFileServers(config.GetConfig().FileServer)

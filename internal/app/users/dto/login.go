@@ -58,3 +58,27 @@ type RefreshTokenResponse struct {
 	AccessTokenExpireIn int64  `json:"expireIn"` // sec
 	RefreshToken        string `json:"refreshToken"`
 }
+
+// 在文件末尾添加以下结构体
+
+// LoginRequest 登录请求
+type LoginRequest struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
+// RegisterRequest 注册请求
+type RegisterRequest struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+	Name     string `json:"name" validate:"required"`
+	Email    string `json:"email"`
+	Phone    string `json:"phone"`
+}
+
+// RegisterResponse 注册响应
+type RegisterResponse struct {
+	UserId   string `json:"userId"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
+}

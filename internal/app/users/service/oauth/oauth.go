@@ -2,9 +2,9 @@ package oauth
 
 import (
 	"HelpStudent/config"
-	"HelpStudent/internal/app/user/model"
-	"HelpStudent/internal/app/user/model/thirdPlat"
-	"HelpStudent/internal/app/user/service/oauth/endpoint"
+	"HelpStudent/internal/app/users/model"
+	"HelpStudent/internal/app/users/model/thirdPlat"
+	"HelpStudent/internal/app/users/service/oauth/endpoint"
 	"gorm.io/datatypes"
 	"strings"
 )

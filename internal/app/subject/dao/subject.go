@@ -20,7 +20,7 @@ func (d *subject) GetLinksByNames(names []string) (map[string]string, error) {
 	}
 
 	var subjects []model.Subject
-	if err := d.DB.Where("subject_name IN ?", names).Find(&subjects).Error; err != nil {
+	if err := d.Where("subject_name IN ?", names).Find(&subjects).Error; err != nil {
 		return nil, err
 	}
 
