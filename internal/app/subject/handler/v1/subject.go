@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"HelpStudent/core/logx"
 	"HelpStudent/internal/app/subject/dao"
+	userDAO "HelpStudent/internal/app/users/dao"
 	user "HelpStudent/internal/app/users/model"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/flamego/flamego"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +20,7 @@ func GetSubjectLink(r flamego.Render, c flamego.Context) ([]string, error) {
 	}
 
 	var userModel user.Users
-	if err := dao.Subject.DB.Where("staff_id = ?", staffId).First(&userModel).Error; err != nil {
+	if err := userDAO.Users.Where("staff_id = ?", staffId).First(&userModel).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("用户不存在")
 		}
@@ -37,8 +40,14 @@ func GetSubjectLink(r flamego.Render, c flamego.Context) ([]string, error) {
 
 	linkMap, err := dao.Subject.GetLinksByNames(subjectNames)
 	if err != nil {
+		logx.SystemLogger.Errorw("Failed to get links by names from DAO",
+			zap.String("staffId", staffId),
+			zap.Any("subjectNames", subjectNames),
+			zap.Error(err))
 		return nil, fmt.Errorf("获取科目链接失败: %v", err)
 	}
+
+	fmt.Println("NeedSubjectsDB:", userModel.NeedSubjectsDB)
 
 	var result []string
 	for _, name := range subjectNames {

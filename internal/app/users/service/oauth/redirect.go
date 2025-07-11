@@ -1,7 +1,7 @@
 package oauth
 
 import (
-	"HelpStudent/internal/app/user/model/thirdPlat"
+	"HelpStudent/internal/app/users/model/thirdPlat"
 	"HelpStudent/pkg/utils/gen/xrandom"
 	"fmt"
 )
