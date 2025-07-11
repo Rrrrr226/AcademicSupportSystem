@@ -1,0 +1,11 @@
+p, admin, project/*, review, read
+p, admin, project/*, review, write
+p, admin, project/*, data, read
+
+p, look, project/*, data, read
+
+
+p, linda, project/xxx, log, export
+
+g, alice, admin, project/xxx
+g, bob, look, project/xxx
