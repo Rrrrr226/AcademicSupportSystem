@@ -82,3 +82,9 @@ type RegisterResponse struct {
 	Username string `json:"username"`
 	Name     string `json:"name"`
 }
+
+type ModifyRequest struct {
+	UserId   string `json:"userId"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
