@@ -11,12 +11,17 @@ const Login = () => {
     setLoading(true);
     try {
       const res = await login(values);
-      message.success('登录成功');
-      localStorage.setItem('token', res.data.data.accessToken);
-      localStorage.setItem('staffId', res.data.data.staffId || values.username);
-      navigate('/subjects');
+      if (res.data && res.data.data && res.data.data.token) {
+        await message.success('登录成功');
+        localStorage.setItem('token', res.data.data.token.trim());
+        localStorage.setItem('staffId', values.username);
+        navigate('/subjects');
+        return;
+      } else {
+        throw new Error('登录返回数据异常');
+      }
     } catch (err) {
-      message.error(err.response?.data?.message || '登录失败');
+      message.error(err.response?.data?.message || err.message || '登录失败');
     }
     setLoading(false);
   };

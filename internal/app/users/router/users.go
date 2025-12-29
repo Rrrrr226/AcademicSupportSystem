@@ -7,6 +7,7 @@ import (
 	"HelpStudent/internal/app/users/handler"
 
 	"errors"
+
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
 )
@@ -31,16 +32,15 @@ func AppUsersInit(e *flamego.Flame) {
 		e.Group("/direct", func() {
 			e.Post("/register", binding.JSON(dto.RegisterRequest{}), handler.HandleRegister)
 			e.Post("/login", binding.JSON(dto.LoginRequest{}), handler.HandleLogin)
+			e.Post("/modify", binding.JSON(dto.ModifyRequest{}), handler.HandleModify, web.Authorization)
 		})
 
 		e.Post("/refresh", binding.JSON(dto.RefreshTokenRequest{}), handler.HandleRefreshToken)
+
+		e.Get("/info", web.Authorization, handler.HandleGetPersonInfo)
 	})
 
-	e.Group("/user/v1", func() {
-		e.Get("", handler.HandleGetPersonInfo)
-	}, web.Authorization)
-
-	e.Get("/api/upload/users", handler.HandleUploadUserXLSX)
+	e.Get("/api/upload/users", handler.HandleUploadUserXLSX, web.Authorization)
 }
 
 func UsersGroup(e *flamego.Flame) {

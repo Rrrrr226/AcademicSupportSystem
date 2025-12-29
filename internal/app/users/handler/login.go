@@ -13,12 +13,13 @@ import (
 	"HelpStudent/internal/app/users/service/oauth"
 	"HelpStudent/pkg/utils"
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"strings"
-	"time"
 )
 
 func HandleThirdPlatLogin(r flamego.Render, c flamego.Context) {
@@ -205,7 +206,6 @@ func HandleRefreshToken(r flamego.Render, req dto.RefreshTokenRequest) {
 	})
 }
 
-// 修改 HandleLogin 函数
 func HandleLogin(r flamego.Render, c flamego.Context, req dto.LoginRequest, errs binding.Errors) {
 	if errs != nil {
 		response.InValidParam(r, errs)
@@ -340,4 +340,61 @@ func HandleRegister(r flamego.Render, c flamego.Context, req dto.RegisterRequest
 		Username: user.Username,
 		Name:     user.Name,
 	})
+}
+
+func HandleModify(r flamego.Render, c flamego.Context, req dto.ModifyRequest, errs binding.Errors) {
+	if errs != nil {
+		response.InValidParam(r, errs)
+		return
+	}
+
+	if dao.Users == nil || dao.Users.DB == nil {
+		response.ServiceErr(r, errors.New("数据库连接未初始化"))
+		return
+	}
+
+	if req.UserId == "" {
+		response.UnAuthorization(r)
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+
+	if req.Password != "" {
+		hashedPassword, err := utils.HashPassword(req.Password)
+		if err != nil {
+			logx.SystemLogger.CtxError(c.Request().Context(), err)
+			response.ServiceErr(r, err)
+			return
+		}
+		updates["password"] = hashedPassword
+	}
+
+	// 如果没有需要更新的字段
+	if len(updates) == 0 {
+		response.HTTPFail(r, 401001, "无更新内容")
+		return
+	}
+
+	// 更新用户信息
+	result := dao.Users.WithContext(c.Request().Context()).
+		Model(&model.Users{}).
+		Where("staff_id = ?", req.UserId).
+		Updates(updates)
+
+	if result.Error != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
+		response.ServiceErr(r, result.Error)
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		response.HTTPFail(r, 401005, "用户不存在")
+		return
+	}
+
+	response.HTTPSuccess(r, nil)
 }
