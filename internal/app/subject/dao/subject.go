@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"HelpStudent/core/logx"
 	"HelpStudent/internal/app/subject/model"
 	"gorm.io/gorm"
 )
@@ -28,6 +29,9 @@ func (d *subject) GetLinksByNames(names []string) (map[string]string, error) {
 	for _, s := range subjects {
 		result[s.SubjectName] = s.SubjectLink
 	}
+
+	logx.ServiceLogger.Infof("GetLinksByNames 查询结果: %+v", subjects)
+	logx.ServiceLogger.Infof("返回的 linkMap: %+v", result)
 
 	return result, nil
 }

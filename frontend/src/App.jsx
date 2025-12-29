@@ -5,6 +5,7 @@ import zhCN from 'antd/locale/zh_CN';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Subjects from './pages/Subjects';
+import ProfilePage from './pages/ProfilePage';
 
 const theme = {
   token: {
@@ -21,6 +22,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/subjects" element={<Subjects />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </Router>

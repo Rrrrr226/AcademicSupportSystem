@@ -3,10 +3,13 @@ package handler
 import (
 	"HelpStudent/internal/app/users/dao"
 	"HelpStudent/internal/app/users/model"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/flamego/flamego"
 	"github.com/xuri/excelize/v2"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 )
@@ -25,7 +28,12 @@ func HandleUploadUserXLSX(r flamego.Render, req *http.Request) {
 		})
 		return
 	}
-	defer file.Close()
+	defer func(file multipart.File) {
+		err := file.Close()
+		if err != nil {
+
+		}
+	}(file)
 
 	// 检查文件类型
 	contentType := header.Header.Get("Content-Type")
@@ -37,8 +45,19 @@ func HandleUploadUserXLSX(r flamego.Render, req *http.Request) {
 		return
 	}
 
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		r.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"success": false,
+			"error":   "读取文件内容失败: " + err.Error(),
+		})
+		return
+	}
+
+	reader := bytes.NewReader(fileBytes)
+
 	// 解析Excel文件
-	f, err := excelize.OpenReader(file)
+	f, err := excelize.OpenReader(reader)
 	if err != nil {
 		r.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"success": false,
@@ -148,9 +167,12 @@ func parseUserRow(row []string) (model.Users, error) {
 	var needSubjects []string
 	subjectsStr := strings.TrimSpace(row[2])
 	if subjectsStr != "" {
-		needSubjects = strings.Split(subjectsStr, ",")
-		for i, subj := range needSubjects {
-			needSubjects[i] = strings.TrimSpace(subj)
+		parts := strings.Split(subjectsStr, "，")
+		for _, part := range parts {
+			subject := strings.TrimSpace(part)
+			if subject != "" {
+				needSubjects = append(needSubjects, subject)
+			}
 		}
 	}
 
