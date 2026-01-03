@@ -1,8 +1,6 @@
 package server
 
 import (
-	subject "HelpStudent/internal/app/subject/dao"
-	users "HelpStudent/internal/app/users/dao"
 	"context"
 	"fmt"
 	"net"
@@ -14,18 +12,14 @@ import (
 	"time"
 
 	"HelpStudent/config"
-	"HelpStudent/core/fileServer"
 	"HelpStudent/core/healthz"
 	"HelpStudent/core/kernel"
 	"HelpStudent/core/logx"
-	"HelpStudent/core/logx/sls"
-	"HelpStudent/core/sentryx"
 	"HelpStudent/core/store/pg"
 	"HelpStudent/core/stringx"
 	"HelpStudent/core/tracex"
 	"HelpStudent/internal/app/appInitialize"
 
-	sentryflame "github.com/asjdf/flamego-sentry"
 	"github.com/flamego/cors"
 	"github.com/flamego/flamego"
 	"github.com/soheilhy/cmux"
@@ -73,25 +67,6 @@ func setUp() {
 		}
 	})
 
-	// 初始化日志
-	if config.GetConfig().Log.EnableSls {
-		for _, conf := range config.GetConfig().Log.SlsSinkConf {
-			sink, err := sls.New(conf, sls.WithHostSource(), sls.WithLogLevel("debug"))
-			if err != nil {
-				panic(err)
-			}
-			if sink.GetLogStore() == "system" {
-				logx.SystemLogger = logx.Setup(logx.WithSink(sink))
-			} else if sink.GetLogStore() == "service" {
-				logx.ServiceLogger = logx.Setup(logx.WithSink(sink))
-			}
-		}
-		client, err := sls.NewClient(config.GetConfig().Log.SlsSinkConf[0])
-		if err != nil {
-			panic(err)
-		}
-		engine.SlsClient = client
-	}
 	if logx.SystemLogger == nil {
 		logx.SystemLogger = logx.Setup()
 	}
@@ -102,12 +77,6 @@ func setUp() {
 		logx.SystemLogger.SetLevel(zap.DebugLevel)
 		logx.ServiceLogger.SetLevel(zap.DebugLevel)
 	}
-
-	// 初始化 sentry
-	sentryx.NewSentry(config.GetConfig().Sentry)
-
-	// 初始化 opentelemetry
-	tracex.StartAgent(config.GetConfig().Trace)
 
 	// 初始化 flamego
 	flamego.SetEnv(flamego.EnvType(config.GetConfig().MODE))
@@ -122,28 +91,12 @@ func setUp() {
 			http.MethodOptions,
 		},
 	}))
-	if config.GetConfig().Sentry.Available() {
-		engine.Fg.Use(sentryflame.New(sentryflame.Options{Repanic: true})) // sentry
-	}
 
 }
 
 // 存储介质连接
 func loadStore() {
 	engine.MainPG = pg.MustNewPGOrm(config.GetConfig().MainPostgres)
-	if err := users.InitPG(engine.MainPG.GetOrm()); err != nil {
-		logx.SystemLogger.Errorw("用户DAO初始化失败", zap.Error(err))
-		os.Exit(1)
-	}
-	if err := subject.InitPG(engine.MainPG.GetOrm()); err != nil {
-		logx.SystemLogger.Errorw("用户DAO初始化失败", zap.Error(err))
-		os.Exit(1)
-	}
-	err := fileServer.InitFileServers(config.GetConfig().FileServer)
-	if err != nil {
-		logx.SystemLogger.Errorw("failed to init file server", zap.Field{Key: "error", Type: zapcore.StringType, String: err.Error()})
-		os.Exit(1)
-	}
 }
 
 // 加载应用，包含多个生命周期

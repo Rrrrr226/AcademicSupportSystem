@@ -24,19 +24,16 @@ func AppUsersInit(e *flamego.Flame) {
 	})
 
 	e.Group("/user/v1", func() {
+		// 三方登录
 		e.Group("/third", func() {
 			e.Get("/jump", handler.HandleThirdPlatLogin)
 			e.Post("/callback", binding.JSON(dto.ThirdPlatLoginCallbackReq{}), handler.HandleThirdPlatCallback)
 		})
 
-		e.Group("/direct", func() {
-			e.Post("/register", binding.JSON(dto.RegisterRequest{}), handler.HandleRegister)
-			e.Post("/login", binding.JSON(dto.LoginRequest{}), handler.HandleLogin)
-			e.Post("/modify", binding.JSON(dto.ModifyRequest{}), handler.HandleModify, web.Authorization)
-		})
-
+		// Token 刷新
 		e.Post("/refresh", binding.JSON(dto.RefreshTokenRequest{}), handler.HandleRefreshToken)
 
+		// 用户信息（需要授权）
 		e.Get("/info", web.Authorization, handler.HandleGetPersonInfo)
 	})
 

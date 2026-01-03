@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Form, Input, message, Spin } from 'antd';
+import { Card, Button, Form, Input, message, Spin, Avatar, Descriptions, Divider, Typography, Space } from 'antd';
+import { UserOutlined, LockOutlined, ArrowLeftOutlined, MailOutlined, PhoneOutlined, IdcardOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+
+const { Title, Text } = Typography;
 
 const ProfilePage = () => {
   const [userInfo, setUserInfo] = useState(null);
@@ -48,27 +51,51 @@ const ProfilePage = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#e6f7ff', padding: 40, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <Card style={{ borderRadius: 16, minWidth: 400 }}>
-        <h2 style={{ color: '#1890ff', textAlign: 'center' }}>个人信息</h2>
-        {loading ? <Spin /> : userInfo && (
-          <div style={{ marginBottom: 32 }}>
-            <p><b>用户名：</b>{userInfo.username}</p>
-            <p><b>姓名：</b>{userInfo.name}</p>
-            <p><b>邮箱：</b>{userInfo.email || '-'}</p>
-            <p><b>手机号：</b>{userInfo.phone || '-'}</p>
-          </div>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', 
+      padding: '40px 20px', 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center' 
+    }}>
+      <Card 
+        style={{ 
+          width: '100%', 
+          maxWidth: 600, 
+          borderRadius: 16, 
+          boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
+          overflow: 'hidden'
+        }}
+        bodyStyle={{ padding: 40 }}
+      >
+        <div style={{ marginBottom: 24 }}>
+            <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin size="large" /></div>
+        ) : userInfo && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 40 }}>
+              <Avatar 
+                size={80} 
+                icon={<UserOutlined />} 
+                style={{ backgroundColor: '#1890ff', marginBottom: 16, boxShadow: '0 4px 10px rgba(24, 144, 255, 0.3)' }} 
+              />
+              <Title level={3} style={{ margin: 0 }}>{userInfo.name || '用户'}</Title>
+              <Text type="secondary">{userInfo.staffId || userInfo.username || 'Loading...'}</Text>
+            </div>
+
+            <Descriptions title="基本信息" column={1} bordered size="small" labelStyle={{ width: 120, fontWeight: 500 }}>
+              <Descriptions.Item label={<Space><IdcardOutlined /> 姓名</Space>}>
+                {userInfo.name}
+              </Descriptions.Item>
+            </Descriptions>
+            
+            <Divider style={{ margin: '32px 0' }} />
+          </>
         )}
-        <h3 style={{ color: '#1890ff' }}>修改密码</h3>
-        <Form form={form} onFinish={onFinish} layout="vertical">
-          <Form.Item name="password" label="新密码" rules={[{ required: true, message: '请输入新密码' }]}>
-            <Input.Password placeholder="请输入新密码" />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={pwdLoading} block>修改密码</Button>
-          </Form.Item>
-        </Form>
-        <Button type="link" onClick={() => navigate(-1)} style={{ marginTop: 8 }}>返回</Button>
       </Card>
     </div>
   );

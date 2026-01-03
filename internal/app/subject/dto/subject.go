@@ -21,3 +21,10 @@ type UpdateSubjectReq struct {
 type GetSubjectResp struct {
 	Subjects []model.Subject `json:"subjects"`
 }
+
+type GetSubjectListResp struct {
+	Total    int64           `json:"total"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"page_size"`
+	Subjects []model.Subject `json:"subjects"`
+}

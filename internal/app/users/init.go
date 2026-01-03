@@ -1,11 +1,17 @@
 package users
 
 import (
-	"context"
 	"HelpStudent/core/kernel"
+	"HelpStudent/core/logx"
 	"HelpStudent/internal/app"
+	users "HelpStudent/internal/app/users/dao"
 	"HelpStudent/internal/app/users/router"
+	"HelpStudent/internal/app/users/service/oauth"
+	"context"
+	"os"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 type (
@@ -20,10 +26,15 @@ func (p *Users) Info() string {
 }
 
 func (p *Users) PreInit(engine *kernel.Engine) error {
+	oauth.Init()
 	return nil
 }
 
-func (p *Users) Init(*kernel.Engine) error {
+func (p *Users) Init(engine *kernel.Engine) error {
+	if err := users.InitPG(engine.MainPG.GetOrm()); err != nil {
+		logx.SystemLogger.Errorw("用户DAO初始化失败", zap.Error(err))
+		os.Exit(1)
+	}
 	return nil
 }
 

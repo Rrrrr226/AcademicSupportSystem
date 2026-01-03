@@ -7,235 +7,279 @@ import (
 	"HelpStudent/internal/app/managers/dao"
 	"HelpStudent/internal/app/managers/dto"
 	"HelpStudent/internal/app/managers/model"
-	"HelpStudent/internal/app/permission/service/rbac"
-	"HelpStudent/pkg/utils"
+	subjectDAO "HelpStudent/internal/app/subject/dao"
+	"bytes"
 	"errors"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"strings"
+
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
+	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
-	"time"
 )
 
-func HandleManagerLogin(r flamego.Render, c flamego.Context, req dto.LoginRequest, errs binding.Errors) {
-	if errs != nil {
-		response.InValidParam(r, errs)
+// HandleImportStudentSubjectsExcel 处理Excel导入学生科目
+func HandleImportStudentSubjectsExcel(r flamego.Render, c flamego.Context, w http.ResponseWriter, req *http.Request) {
+	// 解析multipart form
+	err := req.ParseMultipartForm(32 << 20) // 32MB
+	if err != nil {
+		response.HTTPFail(r, 400001, "文件解析失败")
 		return
 	}
 
-	// 查询用户
-	var user model.Managers
-	result := dao.Managers.WithContext(c.Request().Context()).
-		Where("username = ?", req.Username).
-		First(&user)
+	file, header, err := req.FormFile("file")
+	if err != nil {
+		response.HTTPFail(r, 400002, "获取上传文件失败")
+		return
+	}
+	defer func(file multipart.File) {
+		_ = file.Close()
+	}(file)
 
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			response.HTTPFail(r, 401003, "用户名或密码错误")
-			return
+	// 检查文件扩展名
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".xlsx") &&
+		!strings.HasSuffix(strings.ToLower(header.Filename), ".xls") {
+		response.HTTPFail(r, 400003, "仅支持Excel文件(.xlsx, .xls)")
+		return
+	}
+
+	// 读取文件内容
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.HTTPFail(r, 400004, "读取文件内容失败")
+		return
+	}
+
+	// 打开Excel文件
+	f, err := excelize.OpenReader(bytes.NewReader(fileBytes))
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.HTTPFail(r, 400005, "打开Excel文件失败")
+		return
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	// 获取第一个工作表
+	sheets := f.GetSheetList()
+	if len(sheets) == 0 {
+		response.HTTPFail(r, 400006, "Excel文件中没有工作表")
+		return
+	}
+
+	rows, err := f.GetRows(sheets[0])
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.HTTPFail(r, 400007, "读取Excel内容失败")
+		return
+	}
+
+	if len(rows) < 2 {
+		response.HTTPFail(r, 400008, "Excel文件没有数据行")
+		return
+	}
+
+	// 解析表头，查找学号和科目名称列
+	headerRow := rows[0]
+	staffIdColIdx := -1
+	subjectColIdx := -1
+
+	for idx, cell := range headerRow {
+		cellTrimmed := strings.TrimSpace(cell)
+		if cellTrimmed == "学号" || cellTrimmed == "staff_id" || cellTrimmed == "StaffId" {
+			staffIdColIdx = idx
 		}
-		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
-		response.ServiceErr(r, result.Error)
+		if cellTrimmed == "科目名称" || cellTrimmed == "科目" || cellTrimmed == "subject_name" || cellTrimmed == "SubjectName" {
+			subjectColIdx = idx
+		}
+	}
+
+	if staffIdColIdx == -1 {
+		response.HTTPFail(r, 400009, "Excel缺少学号列（列名应为：学号/staff_id/StaffId）")
 		return
 	}
 
-	// 验证密码
-	if !utils.VerifyPassword(user.Password, req.Password) {
-		response.HTTPFail(r, 401003, "用户名或密码错误")
+	if subjectColIdx == -1 {
+		response.HTTPFail(r, 400010, "Excel缺少科目名称列（列名应为：科目名称/科目/subject_name/SubjectName）")
 		return
 	}
 
-	// 生成令牌
-	token, err := auth.GenToken(auth.Info{Uid: user.Id, StaffId: user.StaffId, Name: user.Name})
+	// 解析数据行
+	type studentSubject struct {
+		StaffId     string
+		SubjectName string
+	}
+	var importData []studentSubject
+	var subjectNames []string
+	subjectSet := make(map[string]bool)
+
+	for i := 1; i < len(rows); i++ {
+		row := rows[i]
+		if len(row) <= staffIdColIdx || len(row) <= subjectColIdx {
+			continue
+		}
+
+		staffId := strings.TrimSpace(row[staffIdColIdx])
+		subjectName := strings.TrimSpace(row[subjectColIdx])
+
+		if staffId == "" || subjectName == "" {
+			continue
+		}
+
+		importData = append(importData, studentSubject{
+			StaffId:     staffId,
+			SubjectName: subjectName,
+		})
+
+		if !subjectSet[subjectName] {
+			subjectSet[subjectName] = true
+			subjectNames = append(subjectNames, subjectName)
+		}
+	}
+
+	if len(importData) == 0 {
+		response.HTTPFail(r, 400011, "没有有效的导入数据")
+		return
+	}
+
+	// 验证所有科目是否存在
+	missingSubjects, err := subjectDAO.Subject.SubjectsExist(subjectNames)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
 		return
 	}
 
-	refreshToken, err := auth.GenToken(auth.Info{
-		Uid:            user.Id,
-		StaffId:        user.StaffId,
-		Name:           user.Name,
-		IsRefreshToken: true,
-	}, auth.RefreshTokenExpireIn)
-
-	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		response.ServiceErr(r, err)
+	if len(missingSubjects) > 0 {
+		response.HTTPFail(r, 400012, fmt.Sprintf("以下科目不存在：%s", strings.Join(missingSubjects, ", ")))
 		return
 	}
 
-	// 返回登录成功响应
-	response.HTTPSuccess(r, dto.GeneralLoginResponse{
-		AccessToken:          token,
-		AccessTokenExpireIn:  int64(auth.AccessTokenExpireIn / time.Second),
-		RefreshToken:         refreshToken,
-		RefreshTokenExpireIn: int64(auth.RefreshTokenExpireIn / time.Second),
+	// 批量导入 - 构造导入数据
+	var importItems []struct {
+		StaffId     string
+		SubjectName string
+	}
+	for _, item := range importData {
+		importItems = append(importItems, struct {
+			StaffId     string
+			SubjectName string
+		}{
+			StaffId:     item.StaffId,
+			SubjectName: item.SubjectName,
+		})
+	}
+
+	successCount, failCount, errorMsgs := subjectDAO.Subject.ImportStudentSubjects(importItems)
+
+	response.HTTPSuccess(r, dto.ImportStudentSubjectsResponse{
+		Total:        len(importData),
+		SuccessCount: successCount,
+		FailCount:    failCount,
+		Errors:       errorMsgs,
 	})
 }
 
-func HandleManagerRegister(r flamego.Render, c flamego.Context, req dto.RegisterRequest, errs binding.Errors) {
+// HandleAddManager 添加管理员
+func HandleAddManager(r flamego.Render, c flamego.Context, req dto.AddManagerRequest, errs binding.Errors) {
 	if errs != nil {
 		response.InValidParam(r, errs)
-		return
-	}
-
-	if dao.Managers == nil || dao.Managers.DB == nil {
-		response.ServiceErr(r, errors.New("数据库连接未初始化"))
 		return
 	}
 
 	// 检查用户名是否已存在
-	var count int64
-	result := dao.Managers.WithContext(c.Request().Context()).
-		Model(&model.Managers{}).
-		Where("username = ?", req.Username).
-		Count(&count)
-
-	if result.Error != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
-		response.ServiceErr(r, result.Error)
-		return
-	}
-
-	if count > 0 {
-		response.HTTPFail(r, 401004, "用户名已存在")
-		return
-	}
-
-	// 使用事务创建用户
-	err := dao.Managers.Transaction(func(tx *gorm.DB) error {
-		// 生成用户ID
-		userId := utils.GenUUID()
-
-		// 加密密码
-		hashedPassword, err := utils.HashPassword(req.Password)
-		if err != nil {
-			return err
-		}
-
-		// 创建用户
-		user := &model.Managers{
-			Id:       userId,
-			StaffId:  req.Username, // 使用用户名作为StaffId，可根据需求调整
-			Name:     req.Name,
-			Username: req.Username,
-			Password: hashedPassword,
-		}
-
-		if err := tx.Create(user).Error; err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
+	existing, err := dao.Managers.GetManagerByStaffID(req.StaffId)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
 		return
 	}
 
-	// 查询创建的用户
-	var user model.Managers
-	dao.Managers.WithContext(c.Request().Context()).
-		Where("username = ?", req.Username).
-		First(&user)
+	if existing != nil {
+		response.HTTPFail(r, 401004, "用户名已存在")
+		return
+	}
 
-	// 返回注册成功响应
-	response.HTTPSuccess(r, dto.RegisterResponse{
-		UserId:   user.Id,
-		Username: user.Username,
-		Name:     user.Name,
+	// 创建管理员
+	manager := &model.Managers{
+		StaffId: req.StaffId, // 使用 userId 作为 StaffId
+	}
+
+	if err := dao.Managers.WithContext(c.Request().Context()).Create(manager).Error; err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	response.HTTPSuccess(r, dto.AddManagerResponse{
+		Id: manager.StaffId,
 	})
 }
 
-func HandleManagerModify(r flamego.Render, c flamego.Context, req dto.ModifyRequest, errs binding.Errors) {
+// HandleDeleteManager 删除管理员
+func HandleDeleteManager(r flamego.Render, c flamego.Context, req dto.DeleteManagerRequest, errs binding.Errors, authInfo auth.Info) {
 	if errs != nil {
 		response.InValidParam(r, errs)
 		return
 	}
 
-	if dao.Managers == nil || dao.Managers.DB == nil {
-		response.ServiceErr(r, errors.New("数据库连接未初始化"))
+	// 防止删除自己
+	if req.StaffId == authInfo.Uid {
+		response.HTTPFail(r, 403001, "不能删除自己")
 		return
 	}
 
-	if req.UserId == "" {
-		response.UnAuthorization(r)
-		return
-	}
-
-	updates := map[string]interface{}{}
-	if req.Name != "" {
-		updates["name"] = req.Name
-	}
-
-	if req.Password != "" {
-		hashedPassword, err := utils.HashPassword(req.Password)
-		if err != nil {
-			logx.SystemLogger.CtxError(c.Request().Context(), err)
-			response.ServiceErr(r, err)
+	// 检查目标管理员是否存在
+	existing, err := dao.Managers.GetManagerByStaffID(req.StaffId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.HTTPFail(r, 404001, "管理员不存在")
 			return
 		}
-		updates["password"] = hashedPassword
-	}
-
-	// 如果没有需要更新的字段
-	if len(updates) == 0 {
-		response.HTTPFail(r, 401001, "无更新内容")
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
 		return
 	}
 
-	// 更新用户信息
-	result := dao.Managers.WithContext(c.Request().Context()).
-		Model(&model.Managers{}).
-		Where("staff_id = ?", req.UserId).
-		Updates(updates)
-
-	if result.Error != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
-		response.ServiceErr(r, result.Error)
+	if existing == nil {
+		response.HTTPFail(r, 404001, "管理员不存在")
 		return
 	}
 
-	if result.RowsAffected == 0 {
-		response.HTTPFail(r, 401005, "用户不存在")
+	// 删除管理员
+	if err := dao.Managers.DeleteManagetByStaffId(req.StaffId); err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
 		return
 	}
 
 	response.HTTPSuccess(r, nil)
 }
 
-func HandleGetManagerInfo(r flamego.Render, c flamego.Context, auth auth.Info) {
-	logx.SystemLogger.Infof("HandleGetPersonInfo: auth.Uid = %s, auth.StaffId = %s", auth.Uid, auth.StaffId)
-
-	var user model.Managers
-	result := dao.Managers.WithContext(c.Request().Context()).Model(&model.Managers{}).
-		Where("id = ?", auth.Uid).Find(&user)
-
-	userInfo := dto.ManagerInfoResponse{
-		Id:          user.Id,
-		StaffId:     user.StaffId,
-		Name:        user.Name,
-		Permissions: nil,
-	}
-
-	if result.Error != nil {
-		logx.SystemLogger.Errorf("HandleGetPersonInfo: 数据库链接错误: %v", result.Error)
-		response.HTTPFail(r, 500, "Failed to get user info", result.Error)
+// HandleGetManagerList 获取管理员列表
+func HandleGetManagerList(r flamego.Render, c flamego.Context) {
+	managers, total, err := dao.Managers.GetAllManagers()
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
 		return
-	} else {
-		logx.SystemLogger.Info("HandleGetPersonInfo: success database connection")
 	}
 
-	if result.RowsAffected == 0 {
-		logx.SystemLogger.Warnf("HandleGetPersonInfo: 找不到用户Uid %s", auth.Uid)
-		response.HTTPFail(r, 404, "User not found", nil)
-		return
-	} else {
-		logx.SystemLogger.Info("HandleGetPersonInfo: success find user info")
+	var list []dto.ManagerItem
+	for _, m := range managers {
+		list = append(list, dto.ManagerItem{
+			StaffId: m.StaffId,
+		})
 	}
-	userInfo.Permissions = rbac.GetStaffSystemPermission(auth.StaffId)
-	response.HTTPSuccess(r, user)
+
+	response.HTTPSuccess(r, dto.ManagerListResponse{
+		Managers: list,
+		Total:    total,
+	})
 }

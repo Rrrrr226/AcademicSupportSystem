@@ -8,7 +8,6 @@ import (
 	"HelpStudent/internal/app/subject/model"
 	userDAO "HelpStudent/internal/app/users/dao"
 	user "HelpStudent/internal/app/users/model"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,6 +25,7 @@ func GetSubjectLink(r flamego.Render, c flamego.Context) {
 		return
 	}
 
+	// 检查用户是否存在
 	var userModel user.Users
 	if err := userDAO.Users.Where("staff_id = ?", staffId).First(&userModel).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -37,25 +37,19 @@ func GetSubjectLink(r flamego.Render, c flamego.Context) {
 		return
 	}
 
-	var subjectNames []string
-	if userModel.NeedSubjectsDB != "" {
-		logx.SystemLogger.Infow("解析前的NeedSubjectsDB数据",
+	// 从 user_subjects 表获取用户的科目列表
+	subjectNames, err := dao.Subject.GetUserSubjects(staffId)
+	if err != nil {
+		logx.SystemLogger.Errorw("获取用户科目失败",
 			zap.String("staffId", staffId),
-			zap.String("rawData", userModel.NeedSubjectsDB))
-
-		if err := json.Unmarshal([]byte(userModel.NeedSubjectsDB), &subjectNames); err != nil {
-			logx.SystemLogger.Errorw("NeedSubjectsDB JSON解析失败",
-				zap.String("staffId", staffId),
-				zap.String("rawData", userModel.NeedSubjectsDB),
-				zap.Error(err))
-			response.ServiceErr(r, fmt.Sprintf("解析NeedSubjectsDB失败: %v", err))
-			return
-		}
-
-		logx.SystemLogger.Infow("解析后的学科数据",
-			zap.String("staffId", staffId),
-			zap.Any("subjectNames", subjectNames))
+			zap.Error(err))
+		response.ServiceErr(r, fmt.Sprintf("获取用户科目失败: %v", err))
+		return
 	}
+
+	logx.SystemLogger.Infow("用户科目数据",
+		zap.String("staffId", staffId),
+		zap.Any("subjectNames", subjectNames))
 
 	if len(subjectNames) == 0 {
 		response.HTTPSuccess(r, dto.GetSubjectResp{})
@@ -76,7 +70,6 @@ func GetSubjectLink(r flamego.Render, c flamego.Context) {
 		return
 	}
 
-	fmt.Println("NeedSubjectsDB:", userModel.NeedSubjectsDB)
 	logx.SystemLogger.Infow("LinkMap result",
 		zap.String("staffId", staffId),
 		zap.Any("linkMap", linkMap))
@@ -98,7 +91,6 @@ func GetSubjectLink(r flamego.Render, c flamego.Context) {
 	response.HTTPSuccess(r, dto.GetSubjectResp{
 		Subjects: result,
 	})
-	return
 }
 
 func AddSubject(r flamego.Render, c flamego.Context, req dto.AddSubjectReq) {
@@ -231,4 +223,50 @@ func UpdateSubject(r flamego.Render, c flamego.Context, req dto.UpdateSubjectReq
 	}
 
 	response.HTTPSuccess(r, "更新成功")
+}
+
+func GetSubjectList(r flamego.Render, c flamego.Context) {
+	//分页
+	pageStr := c.Query("page")
+	pageSizeStr := c.Query("page_size")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page <= 0 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize <= 0 {
+		pageSize = 10
+	}
+
+	var subjects []model.Subject
+	var total int64
+
+	// 获取总数
+	err = dao.Subject.Model(&model.Subject{}).Count(&total).Error
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	// 获取分页数据
+	err = dao.Subject.Model(&model.Subject{}).
+		WithContext(c.Request().Context()).
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		Find(&subjects).Error
+
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	response.HTTPSuccess(r, dto.GetSubjectListResp{
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+		Subjects: subjects,
+	})
 }

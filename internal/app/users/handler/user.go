@@ -4,7 +4,6 @@ import (
 	"HelpStudent/core/auth"
 	"HelpStudent/core/logx"
 	"HelpStudent/core/middleware/response"
-	"HelpStudent/internal/app/permission/service/rbac"
 	"HelpStudent/internal/app/users/dao"
 	"HelpStudent/internal/app/users/dto"
 	"HelpStudent/internal/app/users/model"
@@ -15,12 +14,19 @@ import (
 func HandleGetPersonInfo(r flamego.Render, c flamego.Context, auth auth.Info) {
 	logx.SystemLogger.Infof("HandleGetPersonInfo: auth.Uid = %s, auth.StaffId = %s", auth.Uid, auth.StaffId)
 
+	// 检查 DAO 是否已初始化
+	if dao.Users == nil || dao.Users.DB == nil {
+		logx.SystemLogger.Error("HandleGetPersonInfo: Users DAO 未初始化")
+		response.ServiceErr(r, "服务未就绪，请稍后再试")
+		return
+	}
+
 	var user model.Users
 	result := dao.Users.WithContext(c.Request().Context()).Model(&model.Users{}).
 		Where("id = ?", auth.Uid).Find(&user)
 
 	userInfo := dto.UserInfoResponse{
-		Id:          user.Id,
+		Id:          user.ID,
 		StaffId:     user.StaffId,
 		Name:        user.Name,
 		Permissions: nil,
@@ -41,6 +47,5 @@ func HandleGetPersonInfo(r flamego.Render, c flamego.Context, auth auth.Info) {
 	} else {
 		logx.SystemLogger.Info("HandleGetPersonInfo: success find user info")
 	}
-	userInfo.Permissions = rbac.GetStaffSystemPermission(auth.StaffId)
 	response.HTTPSuccess(r, userInfo)
 }

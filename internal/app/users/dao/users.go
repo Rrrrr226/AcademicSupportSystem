@@ -3,6 +3,7 @@ package dao
 import (
 	"HelpStudent/internal/app/users/model"
 	"context"
+
 	"gorm.io/gorm"
 )
 
@@ -12,7 +13,7 @@ type users struct {
 
 func (u *users) Init(db *gorm.DB) (err error) {
 	u.DB = db
-	return db.AutoMigrate(&model.Users{})
+	return db.AutoMigrate(&model.Users{}, &model.UserBind{})
 }
 
 func (u *users) CreateWithBind(ctx context.Context, user *model.Users, bind *model.UserBind) error {
@@ -26,8 +27,13 @@ func (u *users) CreateWithBind(ctx context.Context, user *model.Users, bind *mod
 	existedUser := model.Users{}
 	result := tx.Model(&model.Users{}).Where("staff_id = ?", user.StaffId).First(&existedUser)
 	if result.RowsAffected == 1 {
-		if res := tx.Model(&model.UserBind{}).Where("user_id = ?", existedUser.Id).
-			Update("union_id", bind.UnionId); res.Error != nil {
+		// 用户已存在，更新绑定信息
+		bind.UserId = existedUser.ID
+		if res := tx.Model(&model.UserBind{}).Where("user_id = ?", existedUser.ID).
+			Updates(map[string]interface{}{
+				"union_id": bind.UnionId,
+				"attr":     bind.Attr,
+			}); res.Error != nil {
 			tx.Rollback()
 			return res.Error
 		}
@@ -35,11 +41,12 @@ func (u *users) CreateWithBind(ctx context.Context, user *model.Users, bind *mod
 		return nil
 	}
 
+	// 创建新用户
 	if result = tx.Create(user); result.Error != nil {
 		tx.Rollback()
 		return result.Error
 	}
-	bind.UserId = user.Id
+	bind.UserId = user.ID
 	if result = tx.Create(bind); result.Error != nil {
 		tx.Rollback()
 		return result.Error

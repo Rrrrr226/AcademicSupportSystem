@@ -3,9 +3,7 @@ package kernel
 import (
 	"HelpStudent/config"
 	"HelpStudent/core/logx/sls"
-	"HelpStudent/core/store/mysql"
 	"HelpStudent/core/store/pg"
-	"HelpStudent/core/store/rds"
 	"context"
 	"net/http"
 
@@ -16,9 +14,6 @@ import (
 type (
 	Engine struct {
 		MainPG     *pg.Orm
-		MainV3PG   *pg.Orm
-		SKLMySQL   *mysql.Orm
-		MainCache  *rds.Redis
 		Fg         *flamego.Flame
 		Mux        *runtime.ServeMux
 		HttpServer *http.Server

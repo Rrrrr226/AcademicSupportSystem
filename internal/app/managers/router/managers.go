@@ -4,8 +4,9 @@ import (
 	"HelpStudent/core/middleware/response"
 	"HelpStudent/core/middleware/web"
 	"HelpStudent/internal/app/managers/dto"
-	"HelpStudent/internal/app/managers/handler/v1"
+	handler "HelpStudent/internal/app/managers/handler/v1"
 	"errors"
+
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
 )
@@ -22,11 +23,13 @@ func AppManagersInit(e *flamego.Flame) {
 	})
 
 	e.Group("/managers", func() {
-		e.Post("/register", binding.JSON(dto.RegisterRequest{}), handler.HandleManagerRegister)
-		e.Post("/login", binding.JSON(dto.LoginRequest{}), handler.HandleManagerLogin)
-		e.Post("/modify", binding.JSON(dto.ModifyRequest{}), handler.HandleManagerModify, web.Authorization)
+		// 管理员管理相关接口（需要登录）
+		e.Get("/list", handler.HandleGetManagerList, web.Authorization)
+		e.Post("/add", binding.JSON(dto.AddManagerRequest{}), handler.HandleAddManager, web.Authorization)
+		e.Post("/delete", binding.JSON(dto.DeleteManagerRequest{}), handler.HandleDeleteManager, web.Authorization)
 
-		e.Get("/info", handler.HandleGetManagerInfo, web.Authorization)
+		// 学生科目导入接口（Excel上传）
+		e.Post("/import/students", handler.HandleImportStudentSubjectsExcel, web.Authorization)
 	})
 
 }

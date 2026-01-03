@@ -3,23 +3,23 @@ package handler
 import (
 	"HelpStudent/config"
 	"HelpStudent/core/auth"
+	"HelpStudent/core/cache"
 	"HelpStudent/core/logx"
 	"HelpStudent/core/middleware/response"
 	"HelpStudent/core/store/rds"
+	managersDao "HelpStudent/internal/app/managers/dao"
 	"HelpStudent/internal/app/users/dao"
 	"HelpStudent/internal/app/users/dto"
 	"HelpStudent/internal/app/users/model"
 	"HelpStudent/internal/app/users/model/thirdPlat"
 	"HelpStudent/internal/app/users/service/oauth"
 	"HelpStudent/pkg/utils"
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
 	"gorm.io/datatypes"
-	"gorm.io/gorm"
 )
 
 func HandleThirdPlatLogin(r flamego.Render, c flamego.Context) {
@@ -154,17 +154,20 @@ func HandleThirdPlatCallback(r flamego.Render, c flamego.Context, req dto.ThirdP
 			StaffId: oauth.GetStaffId(*b),
 			Name:    oauth.GetUserName(*b),
 		}
-		b.Attr = attr
 		err = dao.Users.CreateWithBind(c.Request().Context(), user, b)
 		if err != nil {
 			logx.SystemLogger.CtxError(c.Request().Context(), err)
 			response.ServiceErr(r, err)
 			return
 		}
+		// CreateWithBind 会设置 b.UserId，但如果用户已存在需要重新查询
+		if b.UserId == "" {
+			b.UserId = user.ID
+		}
 	} else {
 		// 老用户更新用户信息
 		b.Attr = attr
-		dao.Users.Model(b).Update("attr", attr)
+		dao.Users.WithContext(c.Request().Context()).Model(b).Update("attr", attr)
 	}
 
 	token, err := auth.GenToken(auth.Info{Uid: b.UserId, StaffId: oauth.GetStaffId(*b), Name: oauth.GetUserName(*b)})
@@ -179,11 +182,20 @@ func HandleThirdPlatCallback(r flamego.Render, c flamego.Context, req dto.ThirdP
 		response.ServiceErr(r, err)
 		return
 	}
-	response.HTTPSuccess(r, dto.GeneralLoginResponse{
+
+	// 检查是否是管理员
+	staffId := oauth.GetStaffId(*b)
+	name := oauth.GetUserName(*b)
+	isManager := managersDao.Managers.IsManager(staffId)
+
+	response.HTTPSuccess(r, dto.ThirdPlatLoginCallbackResp{
 		AccessToken:          token,
 		AccessTokenExpireIn:  int64(auth.AccessTokenExpireIn / time.Second),
 		RefreshToken:         refreshToken,
 		RefreshTokenExpireIn: int64(auth.RefreshTokenExpireIn / time.Second),
+		IsManager:            isManager,
+		StaffId:              staffId,
+		Name:                 name,
 	})
 }
 
@@ -204,197 +216,4 @@ func HandleRefreshToken(r flamego.Render, req dto.RefreshTokenRequest) {
 		AccessTokenExpireIn: int64(auth.AccessTokenExpireIn / time.Second),
 		RefreshToken:        req.RefreshToken,
 	})
-}
-
-func HandleLogin(r flamego.Render, c flamego.Context, req dto.LoginRequest, errs binding.Errors) {
-	if errs != nil {
-		response.InValidParam(r, errs)
-		return
-	}
-
-	// 查询用户
-	var user model.Users
-	result := dao.Users.WithContext(c.Request().Context()).
-		Where("username = ?", req.Username).
-		First(&user)
-
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			response.HTTPFail(r, 401003, "用户名或密码错误")
-			return
-		}
-		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
-		response.ServiceErr(r, result.Error)
-		return
-	}
-
-	// 验证密码
-	if !utils.VerifyPassword(user.Password, req.Password) {
-		response.HTTPFail(r, 401003, "用户名或密码错误")
-		return
-	}
-
-	// 生成令牌
-	token, err := auth.GenToken(auth.Info{Uid: user.Id, StaffId: user.StaffId, Name: user.Name})
-	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		response.ServiceErr(r, err)
-		return
-	}
-
-	refreshToken, err := auth.GenToken(auth.Info{
-		Uid:            user.Id,
-		StaffId:        user.StaffId,
-		Name:           user.Name,
-		IsRefreshToken: true,
-	}, auth.RefreshTokenExpireIn)
-
-	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		response.ServiceErr(r, err)
-		return
-	}
-
-	// 返回登录成功响应
-	response.HTTPSuccess(r, dto.GeneralLoginResponse{
-		AccessToken:          token,
-		AccessTokenExpireIn:  int64(auth.AccessTokenExpireIn / time.Second),
-		RefreshToken:         refreshToken,
-		RefreshTokenExpireIn: int64(auth.RefreshTokenExpireIn / time.Second),
-	})
-}
-
-func HandleRegister(r flamego.Render, c flamego.Context, req dto.RegisterRequest, errs binding.Errors) {
-	if errs != nil {
-		response.InValidParam(r, errs)
-		return
-	}
-
-	if dao.Users == nil || dao.Users.DB == nil {
-		response.ServiceErr(r, errors.New("数据库连接未初始化"))
-		return
-	}
-
-	// 检查用户名是否已存在
-	var count int64
-	result := dao.Users.WithContext(c.Request().Context()).
-		Model(&model.Users{}).
-		Where("username = ?", req.Username).
-		Count(&count)
-
-	if result.Error != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
-		response.ServiceErr(r, result.Error)
-		return
-	}
-
-	if count > 0 {
-		response.HTTPFail(r, 401004, "用户名已存在")
-		return
-	}
-
-	// 使用事务创建用户
-	err := dao.Users.Transaction(func(tx *gorm.DB) error {
-		// 生成用户ID
-		userId := utils.GenUUID()
-
-		// 加密密码
-		hashedPassword, err := utils.HashPassword(req.Password)
-		if err != nil {
-			return err
-		}
-
-		// 创建用户
-		user := &model.Users{
-			Id:       userId,
-			StaffId:  req.Username, // 使用用户名作为StaffId，可根据需求调整
-			Name:     req.Name,
-			Username: req.Username,
-			Password: hashedPassword,
-			Email:    req.Email,
-			Phone:    req.Phone,
-		}
-
-		if err := tx.Create(user).Error; err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		response.ServiceErr(r, err)
-		return
-	}
-
-	// 查询创建的用户
-	var user model.Users
-	dao.Users.WithContext(c.Request().Context()).
-		Where("username = ?", req.Username).
-		First(&user)
-
-	// 返回注册成功响应
-	response.HTTPSuccess(r, dto.RegisterResponse{
-		UserId:   user.Id,
-		Username: user.Username,
-		Name:     user.Name,
-	})
-}
-
-func HandleModify(r flamego.Render, c flamego.Context, req dto.ModifyRequest, errs binding.Errors) {
-	if errs != nil {
-		response.InValidParam(r, errs)
-		return
-	}
-
-	if dao.Users == nil || dao.Users.DB == nil {
-		response.ServiceErr(r, errors.New("数据库连接未初始化"))
-		return
-	}
-
-	if req.UserId == "" {
-		response.UnAuthorization(r)
-		return
-	}
-
-	updates := map[string]interface{}{}
-	if req.Name != "" {
-		updates["name"] = req.Name
-	}
-
-	if req.Password != "" {
-		hashedPassword, err := utils.HashPassword(req.Password)
-		if err != nil {
-			logx.SystemLogger.CtxError(c.Request().Context(), err)
-			response.ServiceErr(r, err)
-			return
-		}
-		updates["password"] = hashedPassword
-	}
-
-	// 如果没有需要更新的字段
-	if len(updates) == 0 {
-		response.HTTPFail(r, 401001, "无更新内容")
-		return
-	}
-
-	// 更新用户信息
-	result := dao.Users.WithContext(c.Request().Context()).
-		Model(&model.Users{}).
-		Where("staff_id = ?", req.UserId).
-		Updates(updates)
-
-	if result.Error != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
-		response.ServiceErr(r, result.Error)
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		response.HTTPFail(r, 401005, "用户不存在")
-		return
-	}
-
-	response.HTTPSuccess(r, nil)
 }

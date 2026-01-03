@@ -26,7 +26,8 @@ func AppSubjectInit(e *flamego.Flame) {
 
 	e.Group("/subject/v1", func() {
 		e.Post("/add", binding.JSON(dto.AddSubjectReq{}), handler.AddSubject)
-		e.Get("/delete", handler.DeleteSubject)
+		e.Get("/list", handler.GetSubjectList)
+		e.Delete("/delete/{subject_id}", handler.DeleteSubject)
 		e.Post("/update", binding.JSON(dto.UpdateSubjectReq{}), handler.UpdateSubject)
 	})
 }

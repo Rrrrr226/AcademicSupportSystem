@@ -1,11 +1,16 @@
 package subject
 
 import (
-	"context"
 	"HelpStudent/core/kernel"
+	"HelpStudent/core/logx"
 	"HelpStudent/internal/app"
+	"HelpStudent/internal/app/subject/dao"
 	"HelpStudent/internal/app/subject/router"
+	"context"
+	"os"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 type (
@@ -23,7 +28,12 @@ func (p *Subject) PreInit(engine *kernel.Engine) error {
 	return nil
 }
 
-func (p *Subject) Init(*kernel.Engine) error {
+func (p *Subject) Init(engine *kernel.Engine) error {
+	// 只初始化 subject DAO，users DAO 由 users 模块负责初始化
+	if err := dao.InitPG(engine.MainPG.GetOrm()); err != nil {
+		logx.SystemLogger.Errorw("科目DAO初始化失败", zap.Error(err))
+		os.Exit(1)
+	}
 	return nil
 }
 
