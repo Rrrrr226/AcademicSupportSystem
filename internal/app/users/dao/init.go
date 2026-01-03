@@ -2,12 +2,12 @@ package dao
 
 import (
 	"errors"
+
 	"gorm.io/gorm"
 )
 
 var (
 	Users = &users{DB: nil}
-	SKL   = &skl{}
 )
 
 func InitPG(db *gorm.DB) error {
@@ -16,9 +16,4 @@ func InitPG(db *gorm.DB) error {
 	}
 
 	return Users.Init(db)
-}
-
-func InitMysql(db *gorm.DB) error {
-	err := SKL.Init(db)
-	return err
 }

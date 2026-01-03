@@ -19,34 +19,20 @@ import (
 	"HelpStudent/core/kernel"
 	"HelpStudent/core/logx"
 	"HelpStudent/core/logx/sls"
-	"HelpStudent/core/middleware/gw"
-	"HelpStudent/core/middleware/rpc"
 	"HelpStudent/core/sentryx"
-	"HelpStudent/core/store/mysql"
 	"HelpStudent/core/store/pg"
-	"HelpStudent/core/store/rds"
 	"HelpStudent/core/stringx"
 	"HelpStudent/core/tracex"
 	"HelpStudent/internal/app/appInitialize"
-	"HelpStudent/pkg/ip"
+
 	sentryflame "github.com/asjdf/flamego-sentry"
 	"github.com/flamego/cors"
 	"github.com/flamego/flamego"
-	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	grpcctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/soheilhy/cmux"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
 )
 
 var (
@@ -126,7 +112,7 @@ func setUp() {
 	// 初始化 flamego
 	flamego.SetEnv(flamego.EnvType(config.GetConfig().MODE))
 	engine.Fg = flamego.New()
-	engine.Fg.Use(flamego.Recovery(), gw.RequestLog(), flamego.Renderer(), cors.CORS(cors.Options{
+	engine.Fg.Use(flamego.Recovery(), flamego.Renderer(), cors.CORS(cors.Options{
 		AllowCredentials: true,
 		Methods: []string{
 			http.MethodGet,
@@ -140,38 +126,6 @@ func setUp() {
 		engine.Fg.Use(sentryflame.New(sentryflame.Options{Repanic: true})) // sentry
 	}
 
-	// 初始化 grpc服务端
-	engine.Grpc = grpc.NewServer(grpc.UnaryInterceptor(grpcmiddleware.ChainUnaryServer(
-		otelgrpc.UnaryServerInterceptor(),
-		grpcrecovery.UnaryServerInterceptor(),
-		grpcctxtags.UnaryServerInterceptor(),
-		grpcauth.UnaryServerInterceptor(rpc.AuthInterceptor),
-		rpc.LoggerInterceptor,
-	)))
-	reflection.Register(engine.Grpc)
-
-	// 初始化 gateway grpc 客户端
-	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-	}
-	conn, err := grpc.Dial(fmt.Sprintf("127.0.0.1:%s", config.GetConfig().Port), opts...)
-	if err != nil {
-		logx.SystemLogger.Errorw("gRPC fail to dial", zap.Field{Key: "err", Type: zapcore.StringType, String: err.Error()})
-		os.Exit(1)
-	}
-
-	// 初始化 gateway
-	mux := runtime.NewServeMux(
-		runtime.WithHealthzEndpoint(grpc_health_v1.NewHealthClient(conn)), // 健康检查
-		runtime.WithIncomingHeaderMatcher(gw.IncomeMatcher),
-		runtime.WithOutgoingHeaderMatcher(gw.OutgoingMatcher),
-		runtime.WithErrorHandler(gw.GrpcGatewayError),            // 错误封装
-		runtime.WithForwardResponseOption(gw.GrpcGatewaySuccess), // success 响应封装
-		runtime.WithMarshalerOption("*", &gw.CustomMarshaller{}), // 为了实现将响应封装在固定格式json.data中，hack一下，在 ForwardResponseOption 中实现
-	)
-	engine.Mux = mux
-	engine.Conn = conn
 }
 
 // 存储介质连接
@@ -185,15 +139,10 @@ func loadStore() {
 		logx.SystemLogger.Errorw("用户DAO初始化失败", zap.Error(err))
 		os.Exit(1)
 	}
-	engine.SKLMySQL = mysql.MustNewMysqlOrm(config.GetConfig().SKLMysql)
-	engine.MainCache = rds.MustNewRedis(config.GetConfig().MainCache)
 	err := fileServer.InitFileServers(config.GetConfig().FileServer)
 	if err != nil {
 		logx.SystemLogger.Errorw("failed to init file server", zap.Field{Key: "error", Type: zapcore.StringType, String: err.Error()})
 		os.Exit(1)
-	}
-	if config.GetConfig().MainV3Postgres.Validate() == nil {
-		engine.MainV3PG = pg.MustNewPGOrm(config.GetConfig().MainV3Postgres)
 	}
 }
 
@@ -256,7 +205,6 @@ func run() {
 
 	// 分流
 	tcpMux := cmux.New(conn)
-	grpcL := tcpMux.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
 	httpL := tcpMux.Match(cmux.HTTP1Fast())
 	go func() {
 		// 在 flamego 外再包一层 otelhttp 用于链路追踪注入
@@ -269,11 +217,6 @@ func run() {
 			logx.SystemLogger.Errorw("failed to start to listen and serve http", zap.Field{Key: "error", Type: zapcore.StringType, String: _err.Error()})
 		}
 	}()
-	go func() {
-		if _err := engine.Grpc.Serve(grpcL); _err != nil {
-			logx.SystemLogger.Errorw("failed to start to listen and serve grpc", zap.Field{Key: "error", Type: zapcore.StringType, String: _err.Error()})
-		}
-	}()
 
 	go func() {
 		logx.SystemLogger.Info("mux listen starting...")
@@ -284,12 +227,6 @@ func run() {
 
 	println(stringx.Green("Server run at:"))
 	println(fmt.Sprintf("-  Local:   http://localhost:%s", port))
-	localHost := ip.GetLocalHost()
-	engine.CurrentIpList = make([]string, 0, len(localHost))
-	for _, host := range localHost {
-		engine.CurrentIpList = append(engine.CurrentIpList, host)
-		println(fmt.Sprintf("-  Network: http://%s:%s", host, port))
-	}
 	// 健康检查设置为可接受服务
 	healthz.Health.Set(true)
 

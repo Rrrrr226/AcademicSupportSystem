@@ -8,7 +8,6 @@ require (
 	github.com/aliyun/aliyun-log-go-sdk v0.1.71
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
 	github.com/asjdf/flamego-sentry v0.0.0-20221203170410-58bea485de8e
-	github.com/bwmarrin/snowflake v0.3.0
 	github.com/casbin/casbin/v2 v2.108.0
 	github.com/casbin/gorm-adapter/v3 v3.32.0
 	github.com/fatih/color v1.16.0
@@ -31,7 +30,6 @@ require (
 	github.com/tidwall/gjson v1.17.1
 	github.com/uptrace/opentelemetry-go-extra/otelgorm v0.2.3
 	github.com/xuri/excelize/v2 v2.9.1
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.24.0
@@ -41,7 +39,6 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.38.0
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d
-	google.golang.org/genproto/googleapis/api v0.0.0-20240228224816-df926f6c8641
 	google.golang.org/grpc v1.62.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/protobuf v1.32.0
@@ -118,6 +115,7 @@ require (
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240228224816-df926f6c8641 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240228224816-df926f6c8641 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
