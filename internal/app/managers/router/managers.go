@@ -30,6 +30,9 @@ func AppManagersInit(e *flamego.Flame) {
 
 		// 学生科目导入接口（Excel上传）
 		e.Post("/import/students", handler.HandleImportStudentSubjectsExcel, web.Authorization)
+
+		// 下载导入模板
+		e.Get("/import/template", handler.HandleDownloadTemplate)
 	})
 
 }

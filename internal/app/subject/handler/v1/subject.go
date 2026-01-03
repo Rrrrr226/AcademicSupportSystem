@@ -114,7 +114,7 @@ func AddSubject(r flamego.Render, c flamego.Context, req dto.AddSubjectReq) {
 		return
 	}
 
-	err := dao.Subject.Model(&model.Subject{}).Create(&newSubject)
+	err := dao.Subject.Model(&model.Subject{}).Create(&newSubject).Error
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)

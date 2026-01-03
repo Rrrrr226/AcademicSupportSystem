@@ -23,15 +23,9 @@ import (
 )
 
 // HandleImportStudentSubjectsExcel 处理Excel导入学生科目
-func HandleImportStudentSubjectsExcel(r flamego.Render, c flamego.Context, w http.ResponseWriter, req *http.Request) {
-	// 解析multipart form
-	err := req.ParseMultipartForm(32 << 20) // 32MB
-	if err != nil {
-		response.HTTPFail(r, 400001, "文件解析失败")
-		return
-	}
-
-	file, header, err := req.FormFile("file")
+func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render, auth auth.Info) {
+	// 从 FormFile 获取文件
+	file, header, err := c.Request().FormFile("file")
 	if err != nil {
 		response.HTTPFail(r, 400002, "获取上传文件失败")
 		return
@@ -282,4 +276,81 @@ func HandleGetManagerList(r flamego.Render, c flamego.Context) {
 		Managers: list,
 		Total:    total,
 	})
+}
+
+// HandleDownloadTemplate 下载学生科目导入模板
+func HandleDownloadTemplate(c flamego.Context, w http.ResponseWriter) {
+	// 创建新的Excel文件
+	f := excelize.NewFile()
+	defer func() {
+		_ = f.Close()
+	}()
+
+	sheetName := "学生科目导入模板"
+	index, err := f.NewSheet(sheetName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("创建工作表失败"))
+		return
+	}
+
+	// 设置表头
+	headers := []string{"学号", "科目名称"}
+	for i, header := range headers {
+		cell := fmt.Sprintf("%c1", 'A'+i)
+		f.SetCellValue(sheetName, cell, header)
+	}
+
+	// 添加示例数据
+	exampleData := [][]string{
+		{"22050626", "高等数学"},
+		{"22050627", "大学英语"},
+		{"22050626", "大学物理"},
+	}
+
+	for i, row := range exampleData {
+		for j, value := range row {
+			cell := fmt.Sprintf("%c%d", 'A'+j, i+2)
+			f.SetCellValue(sheetName, cell, value)
+		}
+	}
+
+	// 设置列宽
+	f.SetColWidth(sheetName, "A", "A", 15)
+	f.SetColWidth(sheetName, "B", "B", 20)
+
+	// 设置表头样式
+	headerStyle, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold: true,
+			Size: 12,
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#4472C4"},
+			Pattern: 1,
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "center",
+			Vertical:   "center",
+		},
+	})
+	if err == nil {
+		f.SetCellStyle(sheetName, "A1", "B1", headerStyle)
+	}
+
+	// 设置活动工作表
+	f.SetActiveSheet(index)
+	// 删除默认的Sheet1
+	f.DeleteSheet("Sheet1")
+
+	// 设置响应头
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", "attachment; filename=student_subject_import_template.xlsx")
+	w.Header().Set("Content-Transfer-Encoding", "binary")
+
+	// 将Excel文件写入响应
+	if err := f.Write(w); err != nil {
+		logx.SystemLogger.Error("写入Excel文件失败", err)
+	}
 }

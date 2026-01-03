@@ -136,6 +136,14 @@ export const importStudentSubjects = (file, token) => {
 };
 
 /**
+ * 下载学生科目导入模板
+ * @returns {string} 模板下载地址
+ */
+export const downloadImportTemplate = () => {
+  return `${BASE_URL}/managers/import/template`;
+};
+
+/**
  * 获取学科列表
  * @param {string} token - 管理员 token
  * @param {number} page - 页码

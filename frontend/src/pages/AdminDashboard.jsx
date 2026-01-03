@@ -5,12 +5,12 @@ import {
 } from 'antd';
 import {
   UserOutlined, UploadOutlined, LogoutOutlined, TeamOutlined,
-  FileExcelOutlined, PlusOutlined, DeleteOutlined, BookOutlined, EditOutlined
+  FileExcelOutlined, PlusOutlined, DeleteOutlined, BookOutlined, EditOutlined, DownloadOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
   getManagerInfo, getManagerList, addManager, deleteManager, importStudentSubjects,
-  getSubjectList, addSubject, deleteSubject, updateSubject
+  getSubjectList, addSubject, deleteSubject, updateSubject, downloadImportTemplate
 } from '../api';
 
 const { Header, Content, Sider } = Layout;
@@ -380,8 +380,18 @@ const AdminDashboard = () => {
                   }
                   type="info"
                   showIcon
-                  style={{ marginBottom: 24 }}
+                  style={{ marginBottom: 16 }}
                 />
+
+                <div style={{ marginBottom: 24 }}>
+                  <Button 
+                    type="default" 
+                    icon={<DownloadOutlined />}
+                    onClick={() => window.open(downloadImportTemplate(), '_blank')}
+                  >
+                    下载导入模板
+                  </Button>
+                </div>
 
                 <Dragger {...uploadProps} style={{ marginBottom: 24 }}>
                   <p className="ant-upload-drag-icon">

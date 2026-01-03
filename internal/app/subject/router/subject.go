@@ -29,7 +29,7 @@ func AppSubjectInit(e *flamego.Flame) {
 		e.Get("/list", handler.GetSubjectList)
 		e.Delete("/delete/{subject_id}", handler.DeleteSubject)
 		e.Post("/update", binding.JSON(dto.UpdateSubjectReq{}), handler.UpdateSubject)
-	})
+	}, web.Authorization)
 }
 
 func SubjectGroup(e *flamego.Flame) {}
