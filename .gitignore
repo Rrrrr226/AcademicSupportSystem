@@ -4,6 +4,8 @@
 test.go
 config/config.yaml
 scripts/k8s/config/*
-/frontend/node_modules/*
-/frontend/build/*
+node_modules/
+.cache/
+/frontend/node_modules
+/frontend/build
 *.xlsx
