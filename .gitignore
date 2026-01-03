@@ -6,6 +6,6 @@ config/config.yaml
 scripts/k8s/config/*
 node_modules/
 .cache/
-/frontend/node_modules
-/frontend/build
+frontend/node_modules
+frontend/build
 *.xlsx
