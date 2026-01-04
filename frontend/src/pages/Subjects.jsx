@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Button, Spin, message, Row, Col, Typography, Empty } from 'antd';
-import { BookOutlined, UserOutlined, ArrowRightOutlined } from '@ant-design/icons';
+import { Card, Button, Spin, message, Row, Col, Typography, Empty, Space } from 'antd';
+import { BookOutlined, UserOutlined, ArrowRightOutlined, DashboardOutlined } from '@ant-design/icons';
 import { getSubjectLink } from '../api/subjects';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,16 +9,28 @@ const { Title, Text } = Typography;
 const Subjects = () => {
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isManager, setIsManager] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     const staffId = localStorage.getItem('staffId');
+    const userInfo = localStorage.getItem('userInfo');
+    
     if (!token || !staffId) {
       message.warning('请先登录');
       navigate('/login');
       return;
     }
+
+    // 检查是否是管理员
+    try {
+      const user = userInfo ? JSON.parse(userInfo) : {};
+      setIsManager(user.isManager || false);
+    } catch (e) {
+      console.error('解析用户信息失败:', e);
+    }
+
     getSubjectLink(staffId)
       .then(res => {
         let subjects = res.data?.data?.subjects;
@@ -81,15 +93,34 @@ const Subjects = () => {
                <Text type="secondary">查看和访问您的课程资源</Text>
              </div>
           </div>
-          <Button 
-            type="default" 
-            shape="round" 
-            icon={<UserOutlined />} 
-            onClick={() => navigate('/profile')}
-            size="large"
-          >
-            个人中心
-          </Button>
+          <Space>
+            {isManager && (
+              <Button 
+                type="primary" 
+                shape="round" 
+                icon={<DashboardOutlined />} 
+                onClick={() => {
+                  // 确保 adminToken 存在
+                  if (!localStorage.getItem('adminToken')) {
+                    localStorage.setItem('adminToken', localStorage.getItem('token'));
+                  }
+                  navigate('/admin/dashboard');
+                }}
+                size="large"
+              >
+                管理后台
+              </Button>
+            )}
+            <Button 
+              type="default" 
+              shape="round" 
+              icon={<UserOutlined />} 
+              onClick={() => navigate('/profile')}
+              size="large"
+            >
+              个人中心
+            </Button>
+          </Space>
         </div>
 
         {loading ? (

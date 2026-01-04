@@ -23,7 +23,7 @@ import (
 )
 
 // HandleImportStudentSubjectsExcel 处理Excel导入学生科目
-func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render, auth auth.Info) {
+func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render) {
 	// 从 FormFile 获取文件
 	file, header, err := c.Request().FormFile("file")
 	if err != nil {
@@ -304,7 +304,7 @@ func HandleDownloadTemplate(c flamego.Context, w http.ResponseWriter) {
 	// 添加示例数据
 	exampleData := [][]string{
 		{"22050626", "高等数学"},
-		{"22050627", "大学英语"},
+		{"22050627", "数据结构"},
 		{"22050626", "大学物理"},
 	}
 

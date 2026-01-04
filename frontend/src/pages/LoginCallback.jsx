@@ -38,16 +38,22 @@ const LoginCallback = () => {
           if (res.data.data.staffId) {
             localStorage.setItem('staffId', res.data.data.staffId);
           }
-          if (res.data.data.userInfo) {
-            localStorage.setItem('userInfo', JSON.stringify(res.data.data.userInfo));
-          }
+          
+          // 检查是否是管理员
+          const isManager = res.data.data.isManager || false;
+          
+          // 保存用户信息（包含 isManager 状态）
+          const userInfo = {
+            ...(res.data.data.userInfo || {}),
+            isManager: isManager,
+            staffId: res.data.data.staffId,
+          };
+          localStorage.setItem('userInfo', JSON.stringify(userInfo));
 
           message.success('登录成功');
           
-          // 检查是否是管理员，跳转到对应页面
-          const isManager = res.data.data.isManager;
+          // 管理员也保存到 adminToken
           if (isManager) {
-            // 管理员 - 同时保存到 adminToken
             localStorage.setItem('adminToken', res.data.data.token.trim());
             if (res.data.data.refreshToken) {
               localStorage.setItem('adminRefreshToken', res.data.data.refreshToken);

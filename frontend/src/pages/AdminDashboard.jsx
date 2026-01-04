@@ -5,12 +5,14 @@ import {
 } from 'antd';
 import {
   UserOutlined, UploadOutlined, LogoutOutlined, TeamOutlined,
-  FileExcelOutlined, PlusOutlined, DeleteOutlined, BookOutlined, EditOutlined, DownloadOutlined
+  FileExcelOutlined, PlusOutlined, DeleteOutlined, BookOutlined, EditOutlined, 
+  DownloadOutlined, SearchOutlined, ReloadOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import {
   getManagerInfo, getManagerList, addManager, deleteManager, importStudentSubjects,
-  getSubjectList, addSubject, deleteSubject, updateSubject, downloadImportTemplate
+  getSubjectList, addSubject, deleteSubject, updateSubject, downloadImportTemplate,
+  getUserSubjectList, addUserSubject, deleteUserSubject, updateUserSubject
 } from '../api';
 
 const { Header, Content, Sider } = Layout;
@@ -22,29 +24,52 @@ const AdminDashboard = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [managers, setManagers] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [userSubjects, setUserSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [subjectLoading, setSubjectLoading] = useState(false);
+  const [userSubjectLoading, setUserSubjectLoading] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [subjectModalVisible, setSubjectModalVisible] = useState(false);
+  const [userSubjectModalVisible, setUserSubjectModalVisible] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
+  const [editingUserSubject, setEditingUserSubject] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [activeTab, setActiveTab] = useState('import');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userSubjectPagination, setUserSubjectPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [managerPagination, setManagerPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [subjectPagination, setSubjectPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [userSubjectFilters, setUserSubjectFilters] = useState({ staffId: '', subjectName: '' });
   const [form] = Form.useForm();
   const [subjectForm] = Form.useForm();
+  const [userSubjectForm] = Form.useForm();
 
   useEffect(() => {
-    const token = localStorage.getItem('adminToken');
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
     if (!token) {
       message.error('请先登录');
-      navigate('/admin/login', { replace: true });
+      navigate('/login', { replace: true });
       return;
+    }
+    // 如果 adminToken 不存在，从 token 复制
+    if (!localStorage.getItem('adminToken') && localStorage.getItem('token')) {
+      localStorage.setItem('adminToken', localStorage.getItem('token'));
     }
     setIsAuthenticated(true);
     fetchCurrentUser(token);
-    fetchManagers(token);
-    fetchSubjects(token);
+    fetchManagers(1, 10);
+    fetchSubjects(1, 10);
   }, [navigate]);
+
+  useEffect(() => {
+    if (activeTab === 'student-subjects') {
+      fetchUserSubjects(userSubjectPagination.current, userSubjectPagination.pageSize, userSubjectFilters);
+    } else if (activeTab === 'subjects') {
+      fetchSubjects(subjectPagination.current, subjectPagination.pageSize);
+    } else if (activeTab === 'managers') {
+      fetchManagers(managerPagination.current, managerPagination.pageSize);
+    }
+  }, [activeTab]);
 
   const fetchCurrentUser = async (token) => {
     if (!token) token = localStorage.getItem('adminToken');
@@ -61,13 +86,18 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchManagers = async (token) => {
-    if (!token) token = localStorage.getItem('adminToken');
+  const fetchManagers = async (page = 1, pageSize = 10) => {
+    const token = localStorage.getItem('adminToken');
     setLoading(true);
     try {
-      const response = await getManagerList(token);
+      const response = await getManagerList(token, page, pageSize);
       if (response.data?.code === 0 || response.data?.code === 200) {
         setManagers(response.data.data?.managers || []);
+        setManagerPagination({
+          current: response.data.data?.page || page,
+          pageSize: response.data.data?.page_size || pageSize,
+          total: response.data.data?.total || 0
+        });
       }
     } catch (error) {
       console.error('获取管理员列表失败:', error);
@@ -76,13 +106,18 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchSubjects = async (token) => {
-    if (!token) token = localStorage.getItem('adminToken');
+  const fetchSubjects = async (page = 1,pageSize = 10) => {
+    const token = localStorage.getItem('adminToken');
     setSubjectLoading(true);
     try {
-      const response = await getSubjectList(token, 1, 100); // 获取前100个，后续可加分页
+      const response = await getSubjectList(token, page, pageSize); 
       if (response.data?.code === 0 || response.data?.code === 200) {
         setSubjects(response.data.data?.subjects || []);
+        setSubjectPagination({
+            current: response.data.data?.page || page,
+            pageSize: response.data.data?.page_size || pageSize,
+            total: response.data.data?.total || 0
+        });
       }
     } catch (error) {
       console.error('获取学科列表失败:', error);
@@ -159,9 +194,9 @@ const AdminDashboard = () => {
       let response;
       if (editingSubject) {
         response = await updateSubject({
-          SubjectId: editingSubject.ID,
-          SubjectName: values.subjectName,
-          SubjectLink: values.subjectLink
+          subject_id: editingSubject.id,
+          subject_name: values.subjectName,
+          subject_link: values.subjectLink
         }, token);
       } else {
         response = await addSubject({
@@ -175,7 +210,7 @@ const AdminDashboard = () => {
         setSubjectModalVisible(false);
         subjectForm.resetFields();
         setEditingSubject(null);
-        fetchSubjects();
+        fetchSubjects(subjectPagination.current, subjectPagination.pageSize);
       } else {
         message.error(response.data?.message || '操作失败');
       }
@@ -191,7 +226,7 @@ const AdminDashboard = () => {
       const response = await deleteSubject(id, token);
       if (response.data?.code === 0 || response.data?.code === 200) {
         message.success('删除成功');
-        fetchSubjects();
+        fetchSubjects(subjectPagination.current, subjectPagination.pageSize);
       } else {
         message.error(response.data?.message || '删除失败');
       }
@@ -210,10 +245,126 @@ const AdminDashboard = () => {
   const openEditSubjectModal = (record) => {
     setEditingSubject(record);
     subjectForm.setFieldsValue({
-      subjectName: record.SubjectName,
-      subjectLink: record.SubjectLink
+      subjectName: record.subject_name,
+      subjectLink: record.subject_link
     });
     setSubjectModalVisible(true);
+  };
+
+  // User Subject Handlers
+  const fetchUserSubjects = async (page = 1, pageSize = 10, filters = {}) => {
+    console.log('fetchUserSubjects called', { page, pageSize, filters });
+    setUserSubjectLoading(true);
+    const token = localStorage.getItem('adminToken');
+    try {
+      const response = await getUserSubjectList({
+        page,
+        pageSize,
+        ...filters
+      }, token);
+      console.log('getUserSubjectList response:', response);
+      if (response.data?.code === 0 || response.data?.code === 200) {
+        console.log('Setting userSubjects:', response.data.data?.user_subjects);
+        setUserSubjects(response.data.data?.user_subjects || []);
+        setUserSubjectPagination({
+          current: response.data.data?.page || page,
+          pageSize: response.data.data?.page_size || pageSize,
+          total: response.data.data?.total || 0
+        });
+      } else {
+        message.error(response.data?.message || '获取学生科目列表失败');
+      }
+    } catch (error) {
+      console.error('获取学生科目列表失败:', error);
+      message.error(error.response?.data?.message || '获取学生科目列表失败');
+    } finally {
+      setUserSubjectLoading(false);
+    }
+  };
+
+  const handleAddUserSubject = () => {
+    setEditingUserSubject(null);
+    userSubjectForm.resetFields();
+    setUserSubjectModalVisible(true);
+  };
+
+  const handleEditUserSubject = (record) => {
+    setEditingUserSubject(record);
+    userSubjectForm.setFieldsValue({
+      staffId: record.staff_id,
+      subjectName: record.subject_name
+    });
+    setUserSubjectModalVisible(true);
+  };
+
+  const handleDeleteUserSubject = async (id) => {
+    const token = localStorage.getItem('adminToken');
+    try {
+      const response = await deleteUserSubject(id, token);
+      if (response.data?.code === 0 || response.data?.code === 200) {
+        message.success('删除成功');
+        fetchUserSubjects(userSubjectPagination.current, userSubjectPagination.pageSize, userSubjectFilters);
+      } else {
+        message.error(response.data?.message || '删除失败');
+      }
+    } catch (error) {
+      console.error('删除失败:', error);
+      message.error(error.response?.data?.message || '删除失败');
+    }
+  };
+
+  const handleUserSubjectSubmit = async () => {
+    try {
+      const values = await userSubjectForm.validateFields();
+      const token = localStorage.getItem('adminToken');
+      
+      if (editingUserSubject) {
+        const response = await updateUserSubject({
+          id: editingUserSubject.id,
+          ...values
+        }, token);
+        if (response.data?.code === 0 || response.data?.code === 200) {
+          message.success('更新成功');
+          setUserSubjectModalVisible(false);
+          fetchUserSubjects(userSubjectPagination.current, userSubjectPagination.pageSize, userSubjectFilters);
+        } else {
+          message.error(response.data?.message || '更新失败');
+        }
+      } else {
+        const response = await addUserSubject(values, token);
+        if (response.data?.code === 0 || response.data?.code === 200) {
+          message.success('添加成功');
+          setUserSubjectModalVisible(false);
+          fetchUserSubjects(userSubjectPagination.current, userSubjectPagination.pageSize, userSubjectFilters);
+        } else {
+          message.error(response.data?.message || '添加失败');
+        }
+      }
+    } catch (error) {
+      console.error('操作失败:', error);
+      message.error(error.response?.data?.message || '操作失败');
+    }
+  };
+
+  const handleUserSubjectSearch = () => {
+    fetchUserSubjects(1, userSubjectPagination.pageSize, userSubjectFilters);
+  };
+
+  const handleUserSubjectReset = () => {
+    setUserSubjectFilters({ staffId: '', subjectName: '' });
+    fetchUserSubjects(1, userSubjectPagination.pageSize, { staffId: '', subjectName: '' });
+  };
+
+  const handleUserSubjectTableChange = (pagination) => {
+    fetchUserSubjects(pagination.current, pagination.pageSize, userSubjectFilters);
+  };
+
+  const handleManagerTableChange = (pagination) => {
+    fetchManagers(pagination.current, pagination.pageSize);
+  };
+
+  const handleSubjectTableChange = (pagination) => {
+    fetchSubjects(pagination.current, pagination.pageSize);
   };
 
   const uploadProps = {
@@ -227,19 +378,19 @@ const AdminDashboard = () => {
   const subjectColumns = [
     {
       title: 'ID',
-      dataIndex: 'ID',
-      key: 'ID',
+      dataIndex: 'id',
+      key: 'id',
       width: 80,
     },
     {
       title: '学科名称',
-      dataIndex: 'SubjectName',
-      key: 'SubjectName',
+      dataIndex: 'subject_name',
+      key: 'subject_name',
     },
     {
       title: '学科链接',
-      dataIndex: 'SubjectLink',
-      key: 'SubjectLink',
+      dataIndex: 'subject_link',
+      key: 'subject_link',
       render: (text) => <a href={text} target="_blank" rel="noopener noreferrer">{text}</a>
     },
     {
@@ -256,7 +407,7 @@ const AdminDashboard = () => {
           </Button>
           <Popconfirm
             title="确定要删除此学科吗？"
-            onConfirm={() => handleDeleteSubject(record.ID)}
+            onConfirm={() => handleDeleteSubject(record.id)}
             okText="确定"
             cancelText="取消"
           >
@@ -346,6 +497,11 @@ const AdminDashboard = () => {
                 key: 'import',
                 icon: <FileExcelOutlined />,
                 label: '导入学生科目',
+              },
+              {
+                key: 'student-subjects',
+                icon: <UserOutlined />,
+                label: '学生科目管理',
               },
               {
                 key: 'subjects',
@@ -458,8 +614,104 @@ const AdminDashboard = () => {
                 <Table
                   columns={subjectColumns}
                   dataSource={subjects}
-                  rowKey="ID"
+                  rowKey="id"
+                  pagination={subjectPagination}
                   loading={subjectLoading}
+                  onChange={handleSubjectTableChange}
+                />
+              </div>
+            )}
+
+            {activeTab === 'student-subjects' && (
+              <div>
+                <div style={{ marginBottom: 16 }}>
+                  <Title level={4}>学生科目管理 (共 {userSubjects.length} 条)</Title>
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                    <Input
+                      placeholder="学号"
+                      value={userSubjectFilters.staffId}
+                      onChange={(e) => setUserSubjectFilters({ ...userSubjectFilters, staffId: e.target.value })}
+                      style={{ width: 200 }}
+                      prefix={<SearchOutlined />}
+                    />
+                    <Input
+                      placeholder="科目名称"
+                      value={userSubjectFilters.subjectName}
+                      onChange={(e) => setUserSubjectFilters({ ...userSubjectFilters, subjectName: e.target.value })}
+                      style={{ width: 200 }}
+                      prefix={<SearchOutlined />}
+                    />
+                    <Button type="primary" onClick={handleUserSubjectSearch} icon={<SearchOutlined />}>
+                      搜索
+                    </Button>
+                    <Button onClick={handleUserSubjectReset} icon={<ReloadOutlined />}>
+                      重置
+                    </Button>
+                    <Button type="primary" onClick={handleAddUserSubject} icon={<PlusOutlined />}>
+                      添加
+                    </Button>
+                  </div>
+                </div>
+
+                <Table
+                  columns={[
+                    {
+                      title: 'ID',
+                      dataIndex: 'id',
+                      key: 'id',
+                      width: 200,
+                      ellipsis: true,
+                    },
+                    {
+                      title: '学号',
+                      dataIndex: 'staff_id',
+                      key: 'staff_id',
+                      width: 120,
+                    },
+                    {
+                      title: '科目名称',
+                      dataIndex: 'subject_name',
+                      key: 'subject_name',
+                      width: 150,
+                    },
+                    {
+                      title: '创建时间',
+                      dataIndex: 'created_at',
+                      key: 'created_at',
+                      width: 180,
+                      render: (text) => text ? new Date(text).toLocaleString() : '-',
+                    },
+                    {
+                      title: '操作',
+                      key: 'action',
+                      render: (_, record) => (
+                        <Space size="middle">
+                          <Button
+                            type="link"
+                            icon={<EditOutlined />}
+                            onClick={() => handleEditUserSubject(record)}
+                          >
+                            编辑
+                          </Button>
+                          <Popconfirm
+                            title="确定删除吗？"
+                            onConfirm={() => handleDeleteUserSubject(record.id)}
+                            okText="确定"
+                            cancelText="取消"
+                          >
+                            <Button type="link" danger icon={<DeleteOutlined />}>
+                              删除
+                            </Button>
+                          </Popconfirm>
+                        </Space>
+                      ),
+                    },
+                  ]}
+                  dataSource={userSubjects}
+                  rowKey="id"
+                  loading={userSubjectLoading}
+                  pagination={userSubjectPagination}
+                  onChange={handleUserSubjectTableChange}
                 />
               </div>
             )}
@@ -482,6 +734,8 @@ const AdminDashboard = () => {
                   dataSource={managers}
                   rowKey="id"
                   loading={loading}
+                  pagination={managerPagination}
+                  onChange={handleManagerTableChange}
                 />
               </div>
             )}
@@ -570,6 +824,54 @@ const AdminDashboard = () => {
               </Button>
               <Button type="primary" htmlType="submit">
                 确认添加
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 添加/编辑学生科目模态框 */}
+      <Modal
+        title={editingUserSubject ? "编辑学生科目" : "添加学生科目"}
+        open={userSubjectModalVisible}
+        onCancel={() => {
+          setUserSubjectModalVisible(false);
+          userSubjectForm.resetFields();
+          setEditingUserSubject(null);
+        }}
+        footer={null}
+      >
+        <Form
+          form={userSubjectForm}
+          layout="vertical"
+          onFinish={handleUserSubjectSubmit}
+        >
+          <Form.Item
+            name="staffId"
+            label="学号"
+            rules={[{ required: true, message: '请输入学号' }]}
+          >
+            <Input placeholder="请输入学号" disabled={!!editingUserSubject} />
+          </Form.Item>
+          <Form.Item
+            name="subjectName"
+            label="科目名称"
+            rules={[{ required: true, message: '请输入科目名称' }]}
+          >
+            <Input placeholder="请输入科目名称" />
+          </Form.Item>
+
+          <Form.Item>
+            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <Button onClick={() => {
+                setUserSubjectModalVisible(false);
+                userSubjectForm.resetFields();
+                setEditingUserSubject(null);
+              }}>
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit">
+                {editingUserSubject ? '更新' : '添加'}
               </Button>
             </Space>
           </Form.Item>

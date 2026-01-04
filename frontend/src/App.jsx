@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import Subjects from './pages/Subjects';
 import ProfilePage from './pages/ProfilePage';
 import LoginCallback from './pages/LoginCallback';
-import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 
 const theme = {
@@ -27,7 +26,6 @@ function App() {
           <Route path="/profile" element={<ProfilePage />} />
           
           {/* 管理员路由 */}
-          <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           
           <Route path="*" element={<Navigate to="/login" />} />

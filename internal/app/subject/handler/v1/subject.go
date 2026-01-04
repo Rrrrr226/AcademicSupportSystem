@@ -7,7 +7,7 @@ import (
 	"HelpStudent/internal/app/subject/dto"
 	"HelpStudent/internal/app/subject/model"
 	userDAO "HelpStudent/internal/app/users/dao"
-	user "HelpStudent/internal/app/users/model"
+	userModel "HelpStudent/internal/app/users/model"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,7 +26,7 @@ func GetSubjectLink(r flamego.Render, c flamego.Context) {
 	}
 
 	// 检查用户是否存在
-	var userModel user.Users
+	var userModel userModel.Users
 	if err := userDAO.Users.Where("staff_id = ?", staffId).First(&userModel).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logx.ServiceLogger.Error("staff_id not found", zap.String("staff_id", staffId))
@@ -269,4 +269,192 @@ func GetSubjectList(r flamego.Render, c flamego.Context) {
 		PageSize: pageSize,
 		Subjects: subjects,
 	})
+}
+
+// GetUserSubjectList 获取学生科目关联列表（分页）
+func GetUserSubjectList(r flamego.Render, c flamego.Context) {
+	pageStr := c.Query("page")
+	pageSizeStr := c.Query("page_size")
+	staffId := c.Query("staff_id")         // 可选的学号筛选
+	subjectName := c.Query("subject_name") // 可选的科目名筛选
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page <= 0 {
+		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil || pageSize <= 0 {
+		pageSize = 10
+	}
+
+	var userSubjects []model.UserSubject
+	var total int64
+
+	query := dao.Subject.Model(&model.UserSubject{}).WithContext(c.Request().Context())
+
+	// 添加筛选条件
+	if staffId != "" {
+		query = query.Where("staff_id LIKE ?", "%"+staffId+"%")
+	}
+	if subjectName != "" {
+		query = query.Where("subject_name LIKE ?", "%"+subjectName+"%")
+	}
+
+	// 获取总数
+	err = query.Count(&total).Error
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	// 获取分页数据
+	err = query.Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		Order("created_at DESC").
+		Find(&userSubjects).Error
+
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	response.HTTPSuccess(r, dto.GetUserSubjectListResp{
+		Total:        total,
+		Page:         page,
+		PageSize:     pageSize,
+		UserSubjects: userSubjects,
+	})
+}
+
+// AddUserSubject 添加学生科目关联
+func AddUserSubjectHandler(r flamego.Render, c flamego.Context, req dto.AddUserSubjectReq) {
+	if req.StaffId == "" {
+		response.HTTPFail(r, 400001, "学号不能为空")
+		return
+	}
+	if req.SubjectName == "" {
+		response.HTTPFail(r, 400002, "科目名称不能为空")
+		return
+	}
+
+	// 查询用户是否存在
+	var user userModel.Users
+	if err := userDAO.Users.Where("staff_id = ?", req.StaffId).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.HTTPFail(r, 404001, "用户不存在")
+			return
+		}
+		response.ServiceErr(r, err)
+		return
+	}
+
+	// 检查科目是否存在
+	var subject model.Subject
+	if err := dao.Subject.Where("subject_name = ?", req.SubjectName).First(&subject).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.HTTPFail(r, 404002, "科目不存在")
+			return
+		}
+		response.ServiceErr(r, err)
+		return
+	}
+
+	// 添加关联
+	err := dao.Subject.AddUserSubject(user.ID, req.StaffId, req.SubjectName)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	response.HTTPSuccess(r, "添加成功")
+}
+
+// DeleteUserSubject 删除学生科目关联
+func DeleteUserSubjectHandler(r flamego.Render, c flamego.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		response.HTTPFail(r, 400001, "ID不能为空")
+		return
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		response.HTTPFail(r, 400002, "无效的ID格式")
+		return
+	}
+
+	// 删除记录
+	result := dao.Subject.Where("id = ?", uint(id)).Delete(&model.UserSubject{})
+	if result.Error != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
+		response.ServiceErr(r, result.Error)
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		response.HTTPFail(r, 404001, "记录不存在")
+		return
+	}
+
+	response.HTTPSuccess(r, "删除成功")
+}
+
+// UpdateUserSubject 更新学生科目关联
+func UpdateUserSubjectHandler(r flamego.Render, c flamego.Context, req dto.UpdateUserSubjectReq) {
+	if req.ID == "" {
+		response.HTTPFail(r, 400001, "ID不能为空")
+		return
+	}
+
+	// 查询记录是否存在
+	var userSubject model.UserSubject
+	if err := dao.Subject.Where("id = ?", req.ID).First(&userSubject).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.HTTPFail(r, 404001, "记录不存在")
+			return
+		}
+		response.ServiceErr(r, err)
+		return
+	}
+
+	// 如果要修改学号，检查用户是否存在
+	if req.StaffId != "" && req.StaffId != userSubject.StaffId {
+		var user userModel.Users
+		if err := userDAO.Users.Where("staff_id = ?", req.StaffId).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				response.HTTPFail(r, 404002, "用户不存在")
+				return
+			}
+			response.ServiceErr(r, err)
+			return
+		}
+		userSubject.UserId = user.ID
+		userSubject.StaffId = req.StaffId
+	}
+
+	// 如果要修改科目名称，检查科目是否存在
+	if req.SubjectName != "" && req.SubjectName != userSubject.SubjectName {
+		var subject model.Subject
+		if err := dao.Subject.Where("subject_name = ?", req.SubjectName).First(&subject).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				response.HTTPFail(r, 404003, "科目不存在")
+				return
+			}
+			response.ServiceErr(r, err)
+			return
+		}
+		userSubject.SubjectName = req.SubjectName
+	}
+
+	// 更新记录
+	if err := dao.Subject.Save(&userSubject).Error; err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	response.HTTPSuccess(r, "更新成功")
 }

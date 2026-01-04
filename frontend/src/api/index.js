@@ -83,10 +83,13 @@ export const getManagerInfo = (token) => {
 /**
  * 获取管理员列表
  * @param {string} token - 管理员 token
+ * @param {number} page - 页码
+ * @param {number} pageSize - 每页数量
  * @returns {Promise} 管理员列表
  */
-export const getManagerList = (token) => {
+export const getManagerList = (token, page = 1, pageSize = 10) => {
   return axios.get(`${BASE_URL}/managers/list`, {
+    params: { page, page_size: pageSize },
     headers: { Authorization: `Bearer ${token}` }
   });
 };
@@ -188,3 +191,51 @@ export const updateSubject = (data, token) =>
   axios.post(`${BASE_URL}/subject/v1/update`, data, {
     headers: { Authorization: `Bearer ${token}` },
   });
+
+/**
+ * 获取学生科目关联列表
+ * @param {Object} params - 查询参数 { page, pageSize, staffId, subjectName }
+ * @param {string} token - 管理员 token
+ * @returns {Promise} 学生科目列表
+ */
+export const getUserSubjectList = (params = {}, token) => {
+  const { page = 1, pageSize = 10, staffId = '', subjectName = '' } = params;
+  return axios.get(`${BASE_URL}/subject/v1/user-subjects`, {
+    params: { page, page_size: pageSize, staff_id: staffId, subject_name: subjectName },
+    headers: { Authorization: `Bearer ${token}` },
+  });
+};
+
+/**
+ * 添加学生科目关联
+ * @param {Object} data - { staff_id, subject_name }
+ * @param {string} token - 管理员 token
+ * @returns {Promise} 添加结果
+ */
+export const addUserSubject = (data, token) =>
+  axios.post(`${BASE_URL}/subject/v1/user-subjects/add`, data, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+/**
+ * 删除学生科目关联
+ * @param {number} id - 关联ID
+ * @param {string} token - 管理员 token
+ * @returns {Promise} 删除结果
+ */
+export const deleteUserSubject = (id, token) =>
+  axios.delete(`${BASE_URL}/subject/v1/user-subjects/delete/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+/**
+ * 更新学生科目关联
+ * @param {Object} data - { id, staff_id, subject_name }
+ * @param {string} token - 管理员 token
+ * @returns {Promise} 更新结果
+ */
+export const updateUserSubject = (data, token) =>
+  axios.post(`${BASE_URL}/subject/v1/user-subjects/update`, data, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
