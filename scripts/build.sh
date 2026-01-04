@@ -27,8 +27,8 @@ echo "✅ Frontend built successfully."
 
 # --- 移动前端产物 ---
 echo "🚚 Moving frontend assets..."
-mv build/* ../build/static/
 cd ..
+cp -r frontend/build/* build/static/
 rm -rf frontend/build
 
 # --- 构建后端 ---
