@@ -33,8 +33,8 @@ rm -rf frontend/build
 
 # --- 构建后端 ---
 echo "🏗️ Building backend..."
-# 编译 Go 应用，输出到 build/server
-go build -o build/server main.go
+# 编译 Go 应用，输出到 build/server（为 Linux 平台编译）
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o build/server main.go
 echo "✅ Backend built successfully."
 
 echo "🚀 Build complete! All artifacts are in the 'build' directory."
