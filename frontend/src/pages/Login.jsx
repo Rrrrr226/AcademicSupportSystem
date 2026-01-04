@@ -33,7 +33,7 @@ const Login = () => {
   return (
     <div style={{ minHeight: '100vh', background: '#e6f7ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Card style={{ width: 350, borderRadius: 16, textAlign: 'center' }}>
-        <h2 style={{ color: '#1890ff', marginBottom: 32 }}>用户登录</h2>
+        <h2 style={{ color: '#1890ff', marginBottom: 32 }}>AI帮扶系统</h2>
         
         <Button 
           type="primary"
@@ -51,7 +51,7 @@ const Login = () => {
         </Button>
         
         <p style={{ marginTop: 24, color: '#999', fontSize: 12 }}>
-          点击上方按钮，使用学校统一身份认证登录
+          点击上方按钮，使用杭电助手统一身份认证登录
         </p>
       </Card>
     </div>
