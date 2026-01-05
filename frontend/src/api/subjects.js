@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { BASE_URL } from './config';
 
 // 配置axios基础URL
-axios.defaults.baseURL = 'http://localhost:9001';
+axios.defaults.baseURL = BASE_URL;
 
 // 添加响应拦截器
 axios.interceptors.response.use(

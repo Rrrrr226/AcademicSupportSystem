@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const BASE_URL = 'http://localhost:9001'; // 根据实际端口调整
+import { BASE_URL } from './config';
 
 // HDUHelp 三方登录配置（测试环境使用本地地址）
 const THIRD_PARTY_API = BASE_URL;
