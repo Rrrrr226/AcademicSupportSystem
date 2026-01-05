@@ -181,9 +181,13 @@ func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render) {
 }
 
 // HandleAddManager 添加管理员
-func HandleAddManager(r flamego.Render, c flamego.Context, req dto.AddManagerRequest, errs binding.Errors) {
+func HandleAddManager(r flamego.Render, c flamego.Context, req dto.AddManagerRequest, errs binding.Errors, authInfo auth.Info) {
 	if errs != nil {
 		response.InValidParam(r, errs)
+		return
+	}
+	if authInfo.Uid != req.StaffId {
+		response.HTTPFail(r, 403001, "不能添加自己")
 		return
 	}
 
@@ -257,7 +261,11 @@ func HandleDeleteManager(r flamego.Render, c flamego.Context, req dto.DeleteMana
 }
 
 // HandleGetManagerList 获取管理员列表
-func HandleGetManagerList(r flamego.Render, c flamego.Context) {
+func HandleGetManagerList(r flamego.Render, c flamego.Context, authInfo auth.Info) {
+	if authInfo.Uid == "" {
+		response.HTTPFail(r, 403002, "permission denied")
+		return
+	}
 	managers, total, err := dao.Managers.GetAllManagers()
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)

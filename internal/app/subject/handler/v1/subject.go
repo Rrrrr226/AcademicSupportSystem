@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"HelpStudent/core/auth"
 	"HelpStudent/core/logx"
 	"HelpStudent/core/middleware/response"
 	"HelpStudent/internal/app/subject/dao"
@@ -17,11 +18,17 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetSubjectLink(r flamego.Render, c flamego.Context) {
+func GetSubjectLink(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 	staffId := c.Param("staff_id")
 	if staffId == "" {
 		logx.ServiceLogger.Error("staff_id is empty")
 		response.ServiceErr(r, "staff_id is empty")
+		return
+	}
+
+	if authInfo.StaffId != staffId {
+		logx.ServiceLogger.Error("staff_id not match")
+		response.ServiceErr(r, "staff_id not match")
 		return
 	}
 

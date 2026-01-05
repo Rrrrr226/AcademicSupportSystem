@@ -22,7 +22,7 @@ func AppSubjectInit(e *flamego.Flame) {
 		response.HTTPFail(r, 500000, "subject Init test error", errors.New("this is err"))
 	})
 
-	e.Get("/subject/get/links/{staff_id}", handler.GetSubjectLink, web.Authorization)
+	e.Get("/subject/get/links/{staff_id}", web.Authorization, handler.GetSubjectLink)
 
 	e.Group("/subject/v1", func() {
 		e.Post("/add", binding.JSON(dto.AddSubjectReq{}), handler.AddSubject)

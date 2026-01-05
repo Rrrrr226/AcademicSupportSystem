@@ -14,5 +14,8 @@ axios.interceptors.response.use(
 );
 
 export const getSubjectLink = (staffId) => {
-  return axios.get(`/subject/get/links/${staffId}`);
+  const token = localStorage.getItem('token');
+  return axios.get(`/subject/get/links/${staffId}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
 };
