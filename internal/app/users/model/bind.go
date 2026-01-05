@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type UserBind struct {
@@ -16,4 +17,5 @@ type UserBind struct {
 	RefreshCredential string
 	ExpiredAt         *time.Time
 	Attr              datatypes.JSON
+	DeletedAt         gorm.DeletedAt `gorm:"index"`
 }
