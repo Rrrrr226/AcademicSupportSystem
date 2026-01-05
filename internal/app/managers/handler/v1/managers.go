@@ -186,7 +186,7 @@ func HandleAddManager(r flamego.Render, c flamego.Context, req dto.AddManagerReq
 		response.InValidParam(r, errs)
 		return
 	}
-	if authInfo.Uid != req.StaffId {
+	if authInfo.Uid == req.StaffId {
 		response.HTTPFail(r, 403001, "不能添加自己")
 		return
 	}
