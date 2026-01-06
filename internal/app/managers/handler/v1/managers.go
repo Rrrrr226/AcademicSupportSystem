@@ -23,7 +23,12 @@ import (
 )
 
 // HandleImportStudentSubjectsExcel 处理Excel导入学生科目
-func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render) {
+func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render, authInfo auth.Info) {
+	// 检查是否是管理员
+	if !dao.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
+		return
+	}
 	// 从 FormFile 获取文件
 	file, header, err := c.Request().FormFile("file")
 	if err != nil {
@@ -186,6 +191,11 @@ func HandleAddManager(r flamego.Render, c flamego.Context, req dto.AddManagerReq
 		response.InValidParam(r, errs)
 		return
 	}
+	// 检查是否是管理员
+	if !dao.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
+		return
+	}
 	if authInfo.Uid == req.StaffId {
 		response.HTTPFail(r, 403001, "不能添加自己")
 		return
@@ -226,6 +236,11 @@ func HandleDeleteManager(r flamego.Render, c flamego.Context, req dto.DeleteMana
 		response.InValidParam(r, errs)
 		return
 	}
+	// 检查是否是管理员
+	if !dao.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
+		return
+	}
 
 	// 防止删除自己
 	if req.StaffId == authInfo.Uid {
@@ -264,6 +279,11 @@ func HandleDeleteManager(r flamego.Render, c flamego.Context, req dto.DeleteMana
 func HandleGetManagerList(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 	if authInfo.Uid == "" {
 		response.HTTPFail(r, 403002, "permission denied")
+		return
+	}
+	// 检查是否是管理员
+	if !dao.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 	managers, total, err := dao.Managers.GetAllManagers()

@@ -36,5 +36,3 @@ func AppManagersInit(e *flamego.Flame) {
 	}, web.Authorization)
 
 }
-
-func ManagersGroup(e *flamego.Flame) {}

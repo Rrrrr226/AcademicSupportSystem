@@ -7,6 +7,7 @@ import (
 	"HelpStudent/internal/app/fastgpt/dao"
 	"HelpStudent/internal/app/fastgpt/dto"
 	"HelpStudent/internal/app/fastgpt/model"
+	dao2 "HelpStudent/internal/app/managers/dao"
 	"errors"
 
 	"github.com/flamego/binding"
@@ -18,6 +19,12 @@ import (
 func HandleCreateApp(c flamego.Context, r flamego.Render, req dto.CreateAppRequest, errs binding.Errors, authInfo auth.Info) {
 	if errs != nil {
 		response.InValidParam(r, errs)
+		return
+	}
+
+	// 检查是否是管理员
+	if !dao2.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 
@@ -61,6 +68,12 @@ func HandleGetAppList(c flamego.Context, r flamego.Render, req dto.GetAppListReq
 		req.Limit = 100
 	}
 
+	// 检查是否是管理员
+	if !dao2.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
+		return
+	}
+
 	apps, total, err := dao.FastgptApp.GetAllApps(req.Offset, req.Limit)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
@@ -94,6 +107,12 @@ func HandleGetAppList(c flamego.Context, r flamego.Render, req dto.GetAppListReq
 func HandleUpdateApp(c flamego.Context, r flamego.Render, req dto.UpdateAppRequest, errs binding.Errors, authInfo auth.Info) {
 	if errs != nil {
 		response.InValidParam(r, errs)
+		return
+	}
+
+	// 检查是否是管理员
+	if !dao2.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 
@@ -143,6 +162,12 @@ func HandleUpdateApp(c flamego.Context, r flamego.Render, req dto.UpdateAppReque
 func HandleDeleteApp(c flamego.Context, r flamego.Render, req dto.DeleteAppRequest, errs binding.Errors, authInfo auth.Info) {
 	if errs != nil {
 		response.InValidParam(r, errs)
+		return
+	}
+
+	// 检查是否是管理员
+	if !dao2.Managers.IsManager(authInfo.Uid) {
+		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 

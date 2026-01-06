@@ -62,5 +62,3 @@ func AppFastgptInit(e *flamego.Flame) {
 		})
 	}, web.Authorization)
 }
-
-func FastgptGroup(e *flamego.Flame) {}

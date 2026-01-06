@@ -14,7 +14,3 @@ type FastgptApp struct {
 	Status      int    `gorm:"default:1;comment:状态(1:启用,0:禁用)"`
 	CreatedBy   string `gorm:"type:varchar(50);comment:创建者"`
 }
-
-func (FastgptApp) TableName() string {
-	return "fastgpt_apps"
-}
