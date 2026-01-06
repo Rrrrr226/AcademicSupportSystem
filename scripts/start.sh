@@ -21,4 +21,4 @@ fi
 
 echo "🚀 Starting server..."
 # 启动后端服务，它将同时提供 API 和静态文件
-./build/server server &
+nohup ./build/server server > server.log 2>&1 &

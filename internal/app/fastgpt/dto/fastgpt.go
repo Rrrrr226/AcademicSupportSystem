@@ -2,11 +2,13 @@ package dto
 
 // ChatCompletionRequest Chat 请求
 type ChatCompletionRequest struct {
+	AppID     string                 `json:"appId" binding:"Required"`
 	ChatId    string                 `json:"chatId"`
 	Stream    bool                   `json:"stream"`
 	Detail    bool                   `json:"detail"`
 	Variables map[string]interface{} `json:"variables"`
 	Messages  []Message              `json:"messages" binding:"Required"`
+	CustomUid string                 `json:"customUid"`
 }
 
 type Message struct {
@@ -92,4 +94,58 @@ type SearchTestRequest struct {
 	Limit      int     `json:"limit"`
 	Similarity float64 `json:"similarity"`
 	SearchMode string  `json:"searchMode"`
+}
+
+// === FastGPT App 管理相关 DTO ===
+
+// CreateAppRequest 创建应用请求
+type CreateAppRequest struct {
+	AppID       string `json:"appId" binding:"Required"`
+	AppName     string `json:"appName" binding:"Required"`
+	APIKey      string `json:"apiKey" binding:"Required"`
+	Description string `json:"description"`
+}
+
+// UpdateAppRequest 更新应用请求
+type UpdateAppRequest struct {
+	ID          uint   `json:"id" binding:"Required"`
+	AppName     string `json:"appName"`
+	APIKey      string `json:"apiKey"`
+	Description string `json:"description"`
+	Status      *int   `json:"status"`
+}
+
+// DeleteAppRequest 删除应用请求
+type DeleteAppRequest struct {
+	ID uint `json:"id" binding:"Required"`
+}
+
+// GetAppListRequest 获取应用列表请求
+type GetAppListRequest struct {
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
+}
+
+// AppItem 应用列表项
+type AppItem struct {
+	ID          uint   `json:"id"`
+	AppID       string `json:"appId"`
+	AppName     string `json:"appName"`
+	APIKey      string `json:"apiKey"`
+	Description string `json:"description"`
+	Status      int    `json:"status"`
+	CreatedBy   string `json:"createdBy"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+// AppListResponse 应用列表响应
+type AppListResponse struct {
+	Apps  []AppItem `json:"apps"`
+	Total int64     `json:"total"`
+}
+
+// CreateAppResponse 创建应用响应
+type CreateAppResponse struct {
+	ID uint `json:"id"`
 }

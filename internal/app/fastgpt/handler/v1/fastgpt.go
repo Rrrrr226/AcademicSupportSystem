@@ -5,6 +5,7 @@ import (
 	"HelpStudent/core/auth"
 	"HelpStudent/core/logx"
 	"HelpStudent/core/middleware/response"
+	"HelpStudent/internal/app/fastgpt/dao"
 	"HelpStudent/internal/app/fastgpt/dto"
 	"HelpStudent/internal/app/fastgpt/service"
 	"bufio"
@@ -16,10 +17,16 @@ import (
 	"github.com/flamego/flamego"
 )
 
-// getFastGPTClient 获取 FastGPT 客户端
-func getFastGPTClient() *service.FastGPTClient {
+// getFastGPTClient 获取 FastGPT 客户端（使用指定的 API Key）
+func getFastGPTClient(apiKey string) *service.FastGPTClient {
 	cfg := config.GetConfig()
-	return service.NewFastGPTClient(cfg.FastGPT.BaseURL, "")
+	return service.NewFastGPTClient(cfg.FastGPT.BaseURL, apiKey)
+}
+
+// getDefaultFastGPTClient 获取默认的 FastGPT 客户端（使用配置文件中的全局 API Key）
+func getDefaultFastGPTClient() *service.FastGPTClient {
+	cfg := config.GetConfig()
+	return service.NewFastGPTClient(cfg.FastGPT.BaseURL, cfg.FastGPT.APIKey)
 }
 
 // HandleChatCompletion 处理聊天补全请求
@@ -29,14 +36,22 @@ func HandleChatCompletion(c flamego.Context, r flamego.Render, req dto.ChatCompl
 		return
 	}
 
+	// 根据 appId 获取对应的 API Key
+	app, err := dao.FastgptApp.GetAppByID(req.AppID)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.HTTPFail(r, 400013, "应用不存在或已禁用")
+		return
+	}
+
 	// 如果是流式请求
 	if req.Stream {
-		handleStreamChat(c, req)
+		handleStreamChat(c, req, app.APIKey)
 		return
 	}
 
 	// 非流式请求
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/v1/chat/completions", req)
+	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequest("POST", "/v1/chat/completions", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -56,8 +71,8 @@ func HandleChatCompletion(c flamego.Context, r flamego.Render, req dto.ChatCompl
 }
 
 // handleStreamChat 处理流式聊天
-func handleStreamChat(c flamego.Context, req dto.ChatCompletionRequest) {
-	resp, err := getFastGPTClient().ForwardStreamRequest("POST", "/v1/chat/completions", req)
+func handleStreamChat(c flamego.Context, req dto.ChatCompletionRequest, apiKey string) {
+	resp, err := getFastGPTClient(apiKey).ForwardStreamRequest("POST", "/v1/chat/completions", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		c.ResponseWriter().Header().Set("Content-Type", "text/event-stream")
@@ -122,7 +137,7 @@ func HandleGetHistories(c flamego.Context, r flamego.Render, req dto.GetHistorie
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/chat/history/getHistories", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/chat/history/getHistories", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -147,7 +162,7 @@ func HandleUpdateHistory(c flamego.Context, r flamego.Render, req dto.UpdateHist
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/chat/history/updateHistory", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/chat/history/updateHistory", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -175,7 +190,7 @@ func HandleDelHistory(c flamego.Context, r flamego.Render, authInfo auth.Info) {
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequestWithQuery("DELETE", "/core/chat/history/delHistory", map[string]string{
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequestWithQuery("DELETE", "/core/chat/history/delHistory", map[string]string{
 		"appId":  appId,
 		"chatId": chatId,
 	})
@@ -203,7 +218,7 @@ func HandleGetPaginationRecords(c flamego.Context, r flamego.Render, req dto.Get
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/chat/getPaginationRecords", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/chat/getPaginationRecords", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -228,7 +243,7 @@ func HandleCreateDataset(c flamego.Context, r flamego.Render, req dto.DatasetCre
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/dataset/create", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/dataset/create", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -253,7 +268,7 @@ func HandleListDatasets(c flamego.Context, r flamego.Render, req dto.DatasetList
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/dataset/list", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/dataset/list", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -279,7 +294,7 @@ func HandleGetDatasetDetail(c flamego.Context, r flamego.Render, authInfo auth.I
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequestWithQuery("GET", "/core/dataset/detail", map[string]string{
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequestWithQuery("GET", "/core/dataset/detail", map[string]string{
 		"id": id,
 	})
 	if err != nil {
@@ -307,7 +322,7 @@ func HandleDeleteDataset(c flamego.Context, r flamego.Render, authInfo auth.Info
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequestWithQuery("DELETE", "/core/dataset/delete", map[string]string{
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequestWithQuery("DELETE", "/core/dataset/delete", map[string]string{
 		"id": id,
 	})
 	if err != nil {
@@ -334,7 +349,7 @@ func HandleCreateCollectionText(c flamego.Context, r flamego.Render, req dto.Cre
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/dataset/collection/create/text", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/dataset/collection/create/text", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -359,7 +374,7 @@ func HandleCreateCollectionLink(c flamego.Context, r flamego.Render, req dto.Cre
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/dataset/collection/create/link", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/dataset/collection/create/link", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -384,7 +399,7 @@ func HandlePushData(c flamego.Context, r flamego.Render, req dto.PushDataRequest
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/dataset/data/pushData", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/dataset/data/pushData", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -409,7 +424,7 @@ func HandleSearchTest(c flamego.Context, r flamego.Render, req dto.SearchTestReq
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient().ForwardRequest("POST", "/core/dataset/searchTest", req)
+	respBody, statusCode, err := getDefaultFastGPTClient().ForwardRequest("POST", "/core/dataset/searchTest", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)

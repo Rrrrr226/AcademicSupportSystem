@@ -3,6 +3,7 @@ package fastgpt
 import (
 	"HelpStudent/core/kernel"
 	"HelpStudent/internal/app"
+	"HelpStudent/internal/app/fastgpt/model"
 	"HelpStudent/internal/app/fastgpt/router"
 	"context"
 	"sync"
@@ -23,8 +24,8 @@ func (p *Fastgpt) PreInit(engine *kernel.Engine) error {
 	return nil
 }
 
-func (p *Fastgpt) Init(*kernel.Engine) error {
-	return nil
+func (p *Fastgpt) Init(engine *kernel.Engine) error {
+	return engine.MainPG.DB.AutoMigrate(&model.FastgptApp{})
 }
 
 func (p *Fastgpt) PostInit(*kernel.Engine) error {

@@ -238,3 +238,57 @@ export const updateUserSubject = (data, token) =>
     headers: { Authorization: `Bearer ${token}` },
   });
 
+// ============ FastGPT App 管理 API ============
+
+/**
+ * 获取 FastGPT 应用列表
+ * @param {string} token - 管理员 token
+ * @param {number} page
+ * @param {number} pageSize
+ * @returns {Promise}
+ */
+export const getFastgptAppList = (token, page = 1, pageSize = 10) => {
+  return axios.post(`${BASE_URL}/fastgpt/apps/list`, {
+    page,
+    pageSize
+  }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+/**
+ * 创建 FastGPT 应用
+ * @param {Object} data - { appId, appName, apiKey, description }
+ * @param {string} token
+ * @returns {Promise}
+ */
+export const createFastgptApp = (data, token) => {
+  return axios.post(`${BASE_URL}/fastgpt/apps/create`, data, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+/**
+ * 更新 FastGPT 应用
+ * @param {Object} data - { id, appName, apiKey, description, status }
+ * @param {string} token
+ * @returns {Promise}
+ */
+export const updateFastgptApp = (data, token) => {
+  return axios.post(`${BASE_URL}/fastgpt/apps/update`, data, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+/**
+ * 删除 FastGPT 应用
+ * @param {number} id
+ * @param {string} token
+ * @returns {Promise}
+ */
+export const deleteFastgptApp = (id, token) => {
+  return axios.post(`${BASE_URL}/fastgpt/apps/delete`, { id }, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+

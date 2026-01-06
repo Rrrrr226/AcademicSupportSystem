@@ -52,6 +52,14 @@ func AppFastgptInit(e *flamego.Flame) {
 			e.Post("/data/pushData", binding.JSON(dto.PushDataRequest{}), handler.HandlePushData)
 			e.Post("/searchTest", binding.JSON(dto.SearchTestRequest{}), handler.HandleSearchTest)
 		})
+
+		// App 管理接口
+		e.Group("/apps", func() {
+			e.Post("/create", binding.JSON(dto.CreateAppRequest{}), handler.HandleCreateApp)
+			e.Post("/list", binding.JSON(dto.GetAppListRequest{}), handler.HandleGetAppList)
+			e.Post("/update", binding.JSON(dto.UpdateAppRequest{}), handler.HandleUpdateApp)
+			e.Post("/delete", binding.JSON(dto.DeleteAppRequest{}), handler.HandleDeleteApp)
+		})
 	}, web.Authorization)
 }
 
