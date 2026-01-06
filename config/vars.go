@@ -16,7 +16,12 @@ type GlobalConfig struct {
 		Secret string `yaml:"Secret"`
 		Issuer string `yaml:"Issuer"`
 	} `yaml:"Auth"`
-	OAuth []OAuth `yaml:"OAuth"`
+	OAuth   []OAuth `yaml:"OAuth"`
+	FastGPT FastGPT `yaml:"FastGPT"`
+}
+
+type FastGPT struct {
+	BaseURL string `yaml:"BaseURL"`
 }
 
 type OAuth struct {

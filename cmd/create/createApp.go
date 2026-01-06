@@ -4,12 +4,13 @@ import (
 	"HelpStudent/core/color"
 	"HelpStudent/pkg/fs"
 	"bytes"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"os"
 	"path"
 	"strings"
 	"text/template"
+
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -47,7 +48,6 @@ func load() error {
 	dto := path.Join(dir, appName, "dto")
 	dao := path.Join(dir, appName, "dao")
 	daoInit := path.Join(dir, appName, "dao")
-	service := path.Join(dir, appName, "service", "gw")
 	model := path.Join(dir, appName, "model")
 	trigger := path.Join(dir, "appInitialize")
 	init := path.Join(dir, appName)
@@ -57,7 +57,6 @@ func load() error {
 	_ = fs.IsNotExistMkDir(handlerMain)
 	_ = fs.IsNotExistMkDir(daoInit)
 	_ = fs.IsNotExistMkDir(dto)
-	_ = fs.IsNotExistMkDir(service)
 	_ = fs.IsNotExistMkDir(model)
 	_ = fs.IsNotExistMkDir(trigger)
 	_ = fs.IsNotExistMkDir(dao)
@@ -67,7 +66,6 @@ func load() error {
 	m["appName"] = strings.ToLower(appName[:1]) + appName[1:]
 
 	router += "/" + m["appName"] + ".go"
-	service += "/" + "service.go"
 	model += "/" + m["appName"] + ".go"
 	handlerMain += "/" + m["appName"] + ".go"
 	dto += "/" + m["appName"] + ".go"
@@ -77,7 +75,7 @@ func load() error {
 	daoInit += "/" + "init.go"
 
 	if !force && (fs.FileExist(router) || fs.FileExist(handlerMain) || fs.FileExist(daoInit) ||
-		fs.FileExist(dto) || fs.FileExist(trigger) || fs.FileExist(service) || fs.FileExist(model) ||
+		fs.FileExist(dto) || fs.FileExist(trigger) || fs.FileExist(model) ||
 		fs.FileExist(init) || fs.FileExist(dao)) {
 
 		return errors.New("target file already exist, use -f flag to cover")
@@ -112,13 +110,6 @@ func load() error {
 		var b bytes.Buffer
 		err = rt.Execute(&b, m)
 		fs.FileCreate(b, dto)
-	}
-	if rt, err := template.ParseFiles("template/service.template"); err != nil {
-		return err
-	} else {
-		var b bytes.Buffer
-		err = rt.Execute(&b, m)
-		fs.FileCreate(b, service)
 	}
 	if rt, err := template.ParseFiles("template/model.template"); err != nil {
 		return err
