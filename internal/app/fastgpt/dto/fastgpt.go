@@ -43,6 +43,7 @@ type GetPaginationRecordsRequest struct {
 
 // DatasetCreateRequest 创建数据集请求
 type DatasetCreateRequest struct {
+	AppId       string  `json:"appId" binding:"Required"`
 	ParentId    *string `json:"parentId"`
 	Type        string  `json:"type"`
 	Name        string  `json:"name" binding:"Required"`
@@ -54,11 +55,13 @@ type DatasetCreateRequest struct {
 
 // DatasetListRequest 数据集列表请求
 type DatasetListRequest struct {
+	AppId    string  `json:"appId" binding:"Required"`
 	ParentId *string `json:"parentId"`
 }
 
 // CreateCollectionTextRequest 从文本创建集合请求
 type CreateCollectionTextRequest struct {
+	AppId            string `json:"appId" binding:"Required"`
 	Text             string `json:"text" binding:"Required"`
 	DatasetId        string `json:"datasetId" binding:"Required"`
 	Name             string `json:"name" binding:"Required"`
@@ -68,6 +71,7 @@ type CreateCollectionTextRequest struct {
 
 // CreateCollectionLinkRequest 从链接创建集合请求
 type CreateCollectionLinkRequest struct {
+	AppId        string                 `json:"appId" binding:"Required"`
 	Link         string                 `json:"link" binding:"Required"`
 	DatasetId    string                 `json:"datasetId" binding:"Required"`
 	TrainingType string                 `json:"trainingType" binding:"Required"`
@@ -76,6 +80,7 @@ type CreateCollectionLinkRequest struct {
 
 // PushDataRequest 推送数据请求
 type PushDataRequest struct {
+	AppId        string     `json:"appId" binding:"Required"`
 	CollectionId string     `json:"collectionId" binding:"Required"`
 	TrainingType string     `json:"trainingType"`
 	Data         []DataItem `json:"data" binding:"Required"`
@@ -89,6 +94,7 @@ type DataItem struct {
 
 // SearchTestRequest 搜索测试请求
 type SearchTestRequest struct {
+	AppId      string  `json:"appId" binding:"Required"`
 	DatasetId  string  `json:"datasetId" binding:"Required"`
 	Text       string  `json:"text" binding:"Required"`
 	Limit      int     `json:"limit"`
@@ -100,7 +106,6 @@ type SearchTestRequest struct {
 
 // CreateAppRequest 创建应用请求
 type CreateAppRequest struct {
-	AppID       string `json:"appId" binding:"Required"`
 	AppName     string `json:"appName" binding:"Required"`
 	APIKey      string `json:"apiKey" binding:"Required"`
 	Description string `json:"description"`
@@ -108,7 +113,7 @@ type CreateAppRequest struct {
 
 // UpdateAppRequest 更新应用请求
 type UpdateAppRequest struct {
-	ID          uint   `json:"id" binding:"Required"`
+	ID          string `json:"id" binding:"Required"`
 	AppName     string `json:"appName"`
 	APIKey      string `json:"apiKey"`
 	Description string `json:"description"`
@@ -117,7 +122,7 @@ type UpdateAppRequest struct {
 
 // DeleteAppRequest 删除应用请求
 type DeleteAppRequest struct {
-	ID uint `json:"id" binding:"Required"`
+	ID string `json:"id" binding:"Required"`
 }
 
 // GetAppListRequest 获取应用列表请求
@@ -128,12 +133,10 @@ type GetAppListRequest struct {
 
 // AppItem 应用列表项
 type AppItem struct {
-	ID          uint   `json:"id"`
-	AppID       string `json:"appId"`
+	ID          string `json:"id"`
 	AppName     string `json:"appName"`
 	APIKey      string `json:"apiKey"`
 	Description string `json:"description"`
-	Status      int    `json:"status"`
 	CreatedBy   string `json:"createdBy"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
@@ -147,5 +150,5 @@ type AppListResponse struct {
 
 // CreateAppResponse 创建应用响应
 type CreateAppResponse struct {
-	ID uint `json:"id"`
+	Name string `json:"name"`
 }

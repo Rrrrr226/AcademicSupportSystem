@@ -31,3 +31,6 @@ Sentry:
 Auth:
   Secret: "<random>"
   Issuer: "MJCLOUDS"
+FastGPT:
+  BaseURL: "http://localhost:3000/api"
+  APIKey: "fastgpt-your-api-key"

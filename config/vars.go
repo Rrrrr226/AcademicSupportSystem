@@ -22,7 +22,6 @@ type GlobalConfig struct {
 
 type FastGPT struct {
 	BaseURL string `yaml:"BaseURL"`
-	APIKey  string `yaml:"APIKey"` // 默认 API Key（用于非聊天功能）
 }
 
 type OAuth struct {

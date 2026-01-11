@@ -3,7 +3,7 @@ package fastgpt
 import (
 	"HelpStudent/core/kernel"
 	"HelpStudent/internal/app"
-	"HelpStudent/internal/app/fastgpt/model"
+	"HelpStudent/internal/app/fastgpt/dao"
 	"HelpStudent/internal/app/fastgpt/router"
 	"context"
 	"sync"
@@ -21,11 +21,15 @@ func (p *Fastgpt) Info() string {
 }
 
 func (p *Fastgpt) PreInit(engine *kernel.Engine) error {
+	err := dao.InitPG(engine.MainPG.GetOrm())
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (p *Fastgpt) Init(engine *kernel.Engine) error {
-	return engine.MainPG.DB.AutoMigrate(&model.FastgptApp{})
+	return nil
 }
 
 func (p *Fastgpt) PostInit(*kernel.Engine) error {

@@ -4,6 +4,7 @@ import (
 	"HelpStudent/core/auth"
 	"HelpStudent/core/logx"
 	"HelpStudent/core/middleware/response"
+	fastgptDAO "HelpStudent/internal/app/fastgpt/dao"
 	"HelpStudent/internal/app/managers/dao"
 	"HelpStudent/internal/app/managers/dto"
 	"HelpStudent/internal/app/managers/model"
@@ -25,7 +26,7 @@ import (
 // HandleImportStudentSubjectsExcel 处理Excel导入学生科目
 func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render, authInfo auth.Info) {
 	// 检查是否是管理员
-	if !dao.Managers.IsManager(authInfo.Uid) {
+	if !dao.Managers.IsManager(authInfo.StaffId) {
 		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
@@ -148,7 +149,8 @@ func HandleImportStudentSubjectsExcel(c flamego.Context, r flamego.Render, authI
 	}
 
 	// 验证所有科目是否存在
-	missingSubjects, err := subjectDAO.Subject.SubjectsExist(subjectNames)
+	missingSubjects, err := fastgptDAO.FastgptApp.SubjectsExist(subjectNames)
+
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -192,11 +194,11 @@ func HandleAddManager(r flamego.Render, c flamego.Context, req dto.AddManagerReq
 		return
 	}
 	// 检查是否是管理员
-	if !dao.Managers.IsManager(authInfo.Uid) {
+	if !dao.Managers.IsManager(authInfo.StaffId) {
 		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
-	if authInfo.Uid == req.StaffId {
+	if authInfo.StaffId == req.StaffId {
 		response.HTTPFail(r, 403001, "不能添加自己")
 		return
 	}
@@ -237,13 +239,13 @@ func HandleDeleteManager(r flamego.Render, c flamego.Context, req dto.DeleteMana
 		return
 	}
 	// 检查是否是管理员
-	if !dao.Managers.IsManager(authInfo.Uid) {
+	if !dao.Managers.IsManager(authInfo.StaffId) {
 		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 
 	// 防止删除自己
-	if req.StaffId == authInfo.Uid {
+	if req.StaffId == authInfo.StaffId {
 		response.HTTPFail(r, 403001, "不能删除自己")
 		return
 	}
@@ -277,12 +279,12 @@ func HandleDeleteManager(r flamego.Render, c flamego.Context, req dto.DeleteMana
 
 // HandleGetManagerList 获取管理员列表
 func HandleGetManagerList(r flamego.Render, c flamego.Context, authInfo auth.Info) {
-	if authInfo.Uid == "" {
+	if authInfo.StaffId == "" {
 		response.HTTPFail(r, 403002, "permission denied")
 		return
 	}
 	// 检查是否是管理员
-	if !dao.Managers.IsManager(authInfo.Uid) {
+	if !dao.Managers.IsManager(authInfo.StaffId) {
 		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}

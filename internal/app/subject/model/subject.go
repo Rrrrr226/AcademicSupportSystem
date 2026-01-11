@@ -6,8 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// 数据库模型
-
+// 本模块废弃
 type Subject struct {
 	ID          uint           `gorm:"primarykey" json:"id"`
 	CreatedAt   time.Time      `json:"created_at"`

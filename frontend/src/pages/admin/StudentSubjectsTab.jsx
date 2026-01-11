@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Space, Popconfirm, Typography, message } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Space, Popconfirm, Typography, message } from 'antd';
 import { DeleteOutlined, PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
-import { getUserSubjectList, addUserSubject, deleteUserSubject, updateUserSubject } from '../../api';
+import { getUserSubjectList, addUserSubject, deleteUserSubject, updateUserSubject, getFastgptAppList } from '../../api';
 
 const { Title } = Typography;
 
@@ -12,11 +12,26 @@ const StudentSubjectsTab = () => {
   const [filters, setFilters] = useState({ staffId: '', subjectName: '' });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUserSubject, setEditingUserSubject] = useState(null);
+  const [availableSubjects, setAvailableSubjects] = useState([]);
   const [form] = Form.useForm();
 
   useEffect(() => {
     fetchUserSubjects(1, 10, filters);
+    fetchAvailableSubjects();
   }, []);
+
+  const fetchAvailableSubjects = async () => {
+    const token = localStorage.getItem('adminToken');
+    try {
+      // Fetch up to 100 apps to populate the select list
+      const response = await getFastgptAppList(token, 1, 100);
+      if (response.data?.code === 0 || response.data?.code === 200) {
+        setAvailableSubjects(response.data.data?.apps || []);
+      }
+    } catch (error) {
+      console.error('获取学科列表失败:', error);
+    }
+  };
 
   const fetchUserSubjects = async (page = 1, pageSize = 10, searchFilters = {}) => {
     setLoading(true);
@@ -127,27 +142,20 @@ const StudentSubjectsTab = () => {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
-      width: 200,
+      width: 300,
       ellipsis: true,
     },
     {
       title: '学号',
       dataIndex: 'staff_id',
       key: 'staff_id',
-      width: 120,
+      width: 200,
     },
     {
       title: '科目名称',
       dataIndex: 'subject_name',
       key: 'subject_name',
       width: 150,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 180,
-      render: (text) => text ? new Date(text).toLocaleString() : '-',
     },
     {
       title: '操作',
@@ -241,9 +249,15 @@ const StudentSubjectsTab = () => {
           <Form.Item
             name="subjectName"
             label="科目名称"
-            rules={[{ required: true, message: '请输入科目名称' }]}
+            rules={[{ required: true, message: '请选择科目名称' }]}
           >
-            <Input placeholder="请输入科目名称" />
+            <Select placeholder="请选择科目名称">
+              {availableSubjects.map((subject) => (
+                <Select.Option key={subject.appName} value={subject.appName}>
+                  {subject.appName}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
 
           <Form.Item>

@@ -23,30 +23,28 @@ func HandleCreateApp(c flamego.Context, r flamego.Render, req dto.CreateAppReque
 	}
 
 	// 检查是否是管理员
-	if !dao2.Managers.IsManager(authInfo.Uid) {
+	if !dao2.Managers.IsManager(authInfo.StaffId) {
 		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 
-	// 检查 AppID 是否已存在
-	exists, err := dao.FastgptApp.CheckAppIDExists(req.AppID, 0)
+	// 检查 AppName 是否已存在
+	exists, err := dao.FastgptApp.CheckAppNameExists(req.AppName)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
 		return
 	}
 	if exists {
-		response.HTTPFail(r, 400014, "应用ID已存在")
+		response.HTTPFail(r, 400014, "应用名称已存在")
 		return
 	}
 
 	// 创建应用
 	app := &model.FastgptApp{
-		AppID:       req.AppID,
 		AppName:     req.AppName,
 		APIKey:      req.APIKey,
 		Description: req.Description,
-		Status:      1,
 		CreatedBy:   authInfo.Uid,
 	}
 
@@ -56,7 +54,7 @@ func HandleCreateApp(c flamego.Context, r flamego.Render, req dto.CreateAppReque
 		return
 	}
 
-	response.HTTPSuccess(r, dto.CreateAppResponse{ID: app.ID})
+	response.HTTPSuccess(r, dto.CreateAppResponse{Name: app.AppName})
 }
 
 // HandleGetAppList 获取应用列表
@@ -69,12 +67,12 @@ func HandleGetAppList(c flamego.Context, r flamego.Render, req dto.GetAppListReq
 	}
 
 	// 检查是否是管理员
-	if !dao2.Managers.IsManager(authInfo.Uid) {
-		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
+	if !dao2.Managers.IsManager(authInfo.StaffId) {
+		response.HTTPFail(r, 400013, "非管理员无法查看应用列表")
 		return
 	}
 
-	apps, total, err := dao.FastgptApp.GetAllApps(req.Offset, req.Limit)
+	apps, total, err := dao.FastgptApp.GetAllApps(c.Request().Context(), req.Offset, req.Limit)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -86,11 +84,9 @@ func HandleGetAppList(c flamego.Context, r flamego.Render, req dto.GetAppListReq
 	for _, app := range apps {
 		appItems = append(appItems, dto.AppItem{
 			ID:          app.ID,
-			AppID:       app.AppID,
 			AppName:     app.AppName,
 			APIKey:      app.APIKey,
 			Description: app.Description,
-			Status:      app.Status,
 			CreatedBy:   app.CreatedBy,
 			CreatedAt:   app.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:   app.UpdatedAt.Format("2006-01-02 15:04:05"),
@@ -111,13 +107,13 @@ func HandleUpdateApp(c flamego.Context, r flamego.Render, req dto.UpdateAppReque
 	}
 
 	// 检查是否是管理员
-	if !dao2.Managers.IsManager(authInfo.Uid) {
+	if !dao2.Managers.IsManager(authInfo.StaffId) {
 		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 
 	// 检查应用是否存在
-	_, err := dao.FastgptApp.GetAppByPrimaryID(req.ID)
+	_, err := dao.FastgptApp.GetAppByPrimaryID(c.Request().Context(), req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.HTTPFail(r, 404001, "应用不存在")
@@ -139,10 +135,6 @@ func HandleUpdateApp(c flamego.Context, r flamego.Render, req dto.UpdateAppReque
 	if req.Description != "" {
 		updates["description"] = req.Description
 	}
-	if req.Status != nil {
-		updates["status"] = *req.Status
-	}
-
 	if len(updates) == 0 {
 		response.HTTPFail(r, 400015, "没有需要更新的字段")
 		return
@@ -166,13 +158,13 @@ func HandleDeleteApp(c flamego.Context, r flamego.Render, req dto.DeleteAppReque
 	}
 
 	// 检查是否是管理员
-	if !dao2.Managers.IsManager(authInfo.Uid) {
+	if !dao2.Managers.IsManager(authInfo.StaffId) {
 		response.HTTPFail(r, 400013, "非管理员用户无法创建应用")
 		return
 	}
 
 	// 检查应用是否存在
-	_, err := dao.FastgptApp.GetAppByPrimaryID(req.ID)
+	_, err := dao.FastgptApp.GetAppByPrimaryID(c.Request().Context(), req.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.HTTPFail(r, 404001, "应用不存在")
@@ -184,7 +176,7 @@ func HandleDeleteApp(c flamego.Context, r flamego.Render, req dto.DeleteAppReque
 	}
 
 	// 删除应用
-	if err := dao.FastgptApp.DeleteApp(req.ID); err != nil {
+	if err := dao.FastgptApp.DeleteApp(c.Request().Context(), req.ID); err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
 		return

@@ -23,10 +23,10 @@ const FastGPTAppsTab = () => {
     try {
       const response = await getFastgptAppList(token, page, pageSize);
       if (response.data?.code === 0 || response.data?.code === 200) {
-        setFastgptApps(response.data.data?.list || []);
+        setFastgptApps(response.data.data?.apps || []);
         setPagination({
-          current: response.data.data?.page || page,
-          pageSize: response.data.data?.pageSize || pageSize,
+          current: page,
+          pageSize: pageSize,
           total: response.data.data?.total || 0,
         });
       }
@@ -47,12 +47,10 @@ const FastGPTAppsTab = () => {
           id: editingFastgptApp.id,
           appName: values.appName,
           apiKey: values.apiKey,
-          description: values.description,
-          status: values.status
+          description: values.description
         }, token);
       } else {
         response = await createFastgptApp({
-          appId: values.appId,
           appName: values.appName,
           apiKey: values.apiKey,
           description: values.description
@@ -99,11 +97,9 @@ const FastGPTAppsTab = () => {
   const openEditModal = (record) => {
     setEditingFastgptApp(record);
     form.setFieldsValue({
-      appId: record.appId,
       appName: record.appName,
       apiKey: record.apiKey,
-      description: record.description,
-      status: record.status
+      description: record.description
     });
     setModalVisible(true);
   };
@@ -113,10 +109,9 @@ const FastGPTAppsTab = () => {
   };
 
   const columns = [
-    { title: 'App ID', dataIndex: 'appId', key: 'appId' },
-    { title: '应用名称', dataIndex: 'appName', key: 'appName' },
+    { title: '学科名称', dataIndex: 'appName', key: 'appName' },
     { 
-      title: 'API Key', 
+      title: '密钥', 
       dataIndex: 'apiKey', 
       key: 'apiKey',
       render: (text) => (
@@ -126,16 +121,6 @@ const FastGPTAppsTab = () => {
       )
     },
     { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
-    { 
-      title: '状态', 
-      dataIndex: 'status', 
-      key: 'status',
-      render: (status) => (
-        <Tag color={status === 1 ? 'success' : 'error'}>
-          {status === 1 ? '启用' : '禁用'}
-        </Tag>
-      )
-    },
     { 
       title: '操作',
       key: 'action',
@@ -153,13 +138,13 @@ const FastGPTAppsTab = () => {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>FastGPT 应用管理</Title>
+        <Title level={4} style={{ margin: 0 }}>学科管理</Title>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={openAddModal}
         >
-          添加应用
+          添加学科
         </Button>
       </div>
 
@@ -173,7 +158,7 @@ const FastGPTAppsTab = () => {
       />
 
       <Modal
-        title={editingFastgptApp ? "编辑应用" : "添加应用"}
+        title={editingFastgptApp ? "编辑学科" : "添加学科"}
         open={modalVisible}
         onCancel={() => {
           setModalVisible(false);
@@ -186,26 +171,18 @@ const FastGPTAppsTab = () => {
           form={form}
           layout="vertical"
           onFinish={handleAddOrUpdateFastgptApp}
-          initialValues={{ status: 1 }}
         >
           <Form.Item
-            name="appId"
-            label="App ID"
-            rules={[{ required: true, message: '请输入 App ID' }]}
-          >
-            <Input placeholder="FastGPT 应用 ID" disabled={!!editingFastgptApp} />
-          </Form.Item>
-          <Form.Item
             name="appName"
-            label="应用名称"
-            rules={[{ required: true, message: '请输入应用名称' }]}
+            label="学科名称"
+            rules={[{ required: true, message: '请输入学科名称' }]}
           >
-            <Input placeholder="给应用起个名字" />
+            <Input placeholder="给学科起个名字" />
           </Form.Item>
           <Form.Item
             name="apiKey"
-            label="API Key"
-            rules={[{ required: true, message: '请输入 API Key' }]}
+            label="密钥"
+            rules={[{ required: true, message: '请输入密钥' }]}
           >
             <Input.Password placeholder="FastGPT API Key" />
           </Form.Item>
@@ -213,22 +190,8 @@ const FastGPTAppsTab = () => {
             name="description"
             label="描述"
           >
-            <Input.TextArea placeholder="应用描述" />
+            <Input.TextArea placeholder="学科描述" />
           </Form.Item>
-          
-          {editingFastgptApp && (
-            <Form.Item
-              name="status"
-              label="状态"
-              rules={[{ required: true, message: '请选择状态' }]}
-            >
-              <Radio.Group>
-                <Radio value={1}>启用</Radio>
-                <Radio value={0}>禁用</Radio>
-              </Radio.Group>
-            </Form.Item>
-          )}
-
           <Form.Item>
             <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
               <Button onClick={() => {

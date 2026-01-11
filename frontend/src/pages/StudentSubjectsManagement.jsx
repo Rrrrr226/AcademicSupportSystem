@@ -172,12 +172,6 @@ const StudentSubjectsManagement = () => {
       key: 'subject_name',
     },
     {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (text) => text ? new Date(text).toLocaleString('zh-CN') : '-',
-    },
-    {
       title: '操作',
       key: 'action',
       width: 180,

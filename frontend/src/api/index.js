@@ -249,8 +249,8 @@ export const updateUserSubject = (data, token) =>
  */
 export const getFastgptAppList = (token, page = 1, pageSize = 10) => {
   return axios.post(`${BASE_URL}/fastgpt/apps/list`, {
-    page,
-    pageSize
+    offset: (page - 1) * pageSize,
+    limit: pageSize
   }, {
     headers: { Authorization: `Bearer ${token}` }
   });

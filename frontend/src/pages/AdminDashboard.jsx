@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Typography, Space, Button, message } from 'antd';
 import {
   UserOutlined, LogoutOutlined, TeamOutlined,
-  FileExcelOutlined, BookOutlined, AppstoreOutlined
+  FileExcelOutlined, BookOutlined, AppstoreOutlined, HomeOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { getManagerInfo } from '../api';
@@ -20,8 +20,12 @@ const { Title, Text } = Typography;
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('import');
+  const [activeTab, setActiveTab] = useState(localStorage.getItem('adminActiveTab') || 'import');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('adminActiveTab', activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
@@ -105,6 +109,7 @@ const AdminDashboard = () => {
         <Title level={4} style={{ margin: 0 }}>学业辅助系统 - 管理后台</Title>
         <Space>
           <Text>欢迎, {currentUser?.name || '管理员'}</Text>
+          <Button icon={<HomeOutlined />} onClick={() => navigate('/subjects')}>进入学生端</Button>
           <Button icon={<LogoutOutlined />} onClick={handleLogout}>退出</Button>
         </Space>
       </Header>
@@ -128,19 +133,14 @@ const AdminDashboard = () => {
                 label: '学生科目管理',
               },
               {
-                key: 'subjects',
-                icon: <BookOutlined />,
-                label: '学科管理',
-              },
-              {
                 key: 'managers',
                 icon: <TeamOutlined />,
                 label: '管理员管理',
               },
               {
                 key: 'fastgpt-apps',
-                icon: <AppstoreOutlined />,
-                label: 'FastGPT 应用管理',
+                icon: <BookOutlined />,
+                label: '学科管理',
               },
             ]}
           />
