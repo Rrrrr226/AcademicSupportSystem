@@ -18,8 +18,13 @@ type UpdateSubjectReq struct {
 	SubjectLink string `json:"subject_link"`
 }
 
+type SubjectItem struct {
+	model.Subject
+	AppID string `json:"app_id"`
+}
+
 type GetSubjectResp struct {
-	Subjects []model.Subject `json:"subjects"`
+	Subjects []SubjectItem `json:"subjects"`
 }
 
 type GetSubjectListResp struct {

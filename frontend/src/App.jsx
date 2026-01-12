@@ -7,6 +7,7 @@ import Subjects from './pages/Subjects';
 import ProfilePage from './pages/ProfilePage';
 import LoginCallback from './pages/LoginCallback';
 import AdminDashboard from './pages/AdminDashboard';
+import Chat from './pages/Chat';
 
 const theme = {
   token: {
@@ -23,6 +24,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/login/callback" element={<LoginCallback />} />
           <Route path="/subjects" element={<Subjects />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/profile" element={<ProfilePage />} />
           
           {/* 管理员路由 */}

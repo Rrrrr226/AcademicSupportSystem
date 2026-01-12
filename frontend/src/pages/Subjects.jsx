@@ -38,6 +38,7 @@ const Subjects = () => {
           subjects = subjects.map(item => ({
             subject_name: item.subject_name || item.name || item.SubjectName,
             subject_link: item.subject_link || item.link || item.SubjectLink,
+            app_id: item.app_id
           }));
         } else {
           subjects = [];
@@ -51,9 +52,11 @@ const Subjects = () => {
       .finally(() => setLoading(false));
   }, [navigate]);
 
-  const handleSubjectClick = (link) => {
-    if (link) {
-      window.open(link, '_blank');
+  const handleSubjectClick = (item) => {
+    if (item.app_id) {
+      navigate('/chat', { state: { appId: item.app_id, title: item.subject_name } });
+    } else if (item.subject_link) {
+      window.open(item.subject_link, '_blank');
     } else {
       message.warning('无效链接');
     }
@@ -144,7 +147,7 @@ const Subjects = () => {
                     transition: 'all 0.3s'
                   }}
                   bodyStyle={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', height: '100%', justifyContent: 'center' }}
-                  onClick={() => handleSubjectClick(item.subject_link)}
+                  onClick={() => handleSubjectClick(item)}
                 >
                   <div style={{ 
                     width: 64, height: 64, borderRadius: '50%', background: item.subject_link ? '#e6f7ff' : '#f5f5f5', 

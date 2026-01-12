@@ -2,13 +2,15 @@ package dto
 
 // ChatCompletionRequest Chat 请求
 type ChatCompletionRequest struct {
-	AppID     string                 `json:"appId" binding:"Required"`
-	ChatId    string                 `json:"chatId"`
-	Stream    bool                   `json:"stream"`
-	Detail    bool                   `json:"detail"`
-	Variables map[string]interface{} `json:"variables"`
-	Messages  []Message              `json:"messages" binding:"Required"`
-	CustomUid string                 `json:"customUid"`
+	FastgptAppId string                 `json:"fastgptAppId" binding:"Required"` // 用于获取 API Key，不转发给 FastGPT
+	ChatId       string                 `json:"chatId"`
+	Stream       bool                   `json:"stream"`
+	Detail       bool                   `json:"detail"`
+	Variables    map[string]interface{} `json:"variables"`
+	Messages     []Message              `json:"messages" binding:"Required"`
+	CustomUid    string                 `json:"customUid"`
+	ShareId      string                 `json:"shareId"`
+	OutLinkUid   string                 `json:"outLinkUid"`
 }
 
 type Message struct {
@@ -17,14 +19,16 @@ type Message struct {
 }
 
 // GetHistoriesRequest 获取聊天历史列表请求
+// FastGPT API 需要 appId 字段，所以保留
 type GetHistoriesRequest struct {
-	AppId    string `json:"appId"`
+	AppId    string `json:"appId" binding:"Required"`
 	Offset   int    `json:"offset"`
 	PageSize int    `json:"pageSize"`
 	Source   string `json:"source"`
 }
 
 // UpdateHistoryRequest 更新聊天会话请求
+// FastGPT API 需要 appId 字段，所以保留
 type UpdateHistoryRequest struct {
 	AppId       string `json:"appId" binding:"Required"`
 	ChatId      string `json:"chatId" binding:"Required"`
@@ -33,6 +37,7 @@ type UpdateHistoryRequest struct {
 }
 
 // GetPaginationRecordsRequest 获取聊天记录请求
+// FastGPT API 需要 appId 字段，所以保留
 type GetPaginationRecordsRequest struct {
 	AppId               string `json:"appId" binding:"Required"`
 	ChatId              string `json:"chatId" binding:"Required"`
@@ -42,26 +47,29 @@ type GetPaginationRecordsRequest struct {
 }
 
 // DatasetCreateRequest 创建数据集请求
+// FastGPT API 不需要 appId，使用 fastgptAppId 获取 API Key
 type DatasetCreateRequest struct {
-	AppId       string  `json:"appId" binding:"Required"`
-	ParentId    *string `json:"parentId"`
-	Type        string  `json:"type"`
-	Name        string  `json:"name" binding:"Required"`
-	Intro       string  `json:"intro"`
-	Avatar      string  `json:"avatar"`
-	VectorModel string  `json:"vectorModel"`
-	AgentModel  string  `json:"agentModel"`
+	FastgptAppId string  `json:"fastgptAppId" binding:"Required"`
+	ParentId     *string `json:"parentId"`
+	Type         string  `json:"type"`
+	Name         string  `json:"name" binding:"Required"`
+	Intro        string  `json:"intro"`
+	Avatar       string  `json:"avatar"`
+	VectorModel  string  `json:"vectorModel"`
+	AgentModel   string  `json:"agentModel"`
 }
 
 // DatasetListRequest 数据集列表请求
+// FastGPT API 不需要 appId，使用 fastgptAppId 获取 API Key
 type DatasetListRequest struct {
-	AppId    string  `json:"appId" binding:"Required"`
-	ParentId *string `json:"parentId"`
+	FastgptAppId string  `json:"fastgptAppId" binding:"Required"`
+	ParentId     *string `json:"parentId"`
 }
 
 // CreateCollectionTextRequest 从文本创建集合请求
+// FastGPT API 不需要 appId，使用 fastgptAppId 获取 API Key
 type CreateCollectionTextRequest struct {
-	AppId            string `json:"appId" binding:"Required"`
+	FastgptAppId     string `json:"fastgptAppId" binding:"Required"`
 	Text             string `json:"text" binding:"Required"`
 	DatasetId        string `json:"datasetId" binding:"Required"`
 	Name             string `json:"name" binding:"Required"`
@@ -70,8 +78,9 @@ type CreateCollectionTextRequest struct {
 }
 
 // CreateCollectionLinkRequest 从链接创建集合请求
+// FastGPT API 不需要 appId，使用 fastgptAppId 获取 API Key
 type CreateCollectionLinkRequest struct {
-	AppId        string                 `json:"appId" binding:"Required"`
+	FastgptAppId string                 `json:"fastgptAppId" binding:"Required"`
 	Link         string                 `json:"link" binding:"Required"`
 	DatasetId    string                 `json:"datasetId" binding:"Required"`
 	TrainingType string                 `json:"trainingType" binding:"Required"`
@@ -79,8 +88,9 @@ type CreateCollectionLinkRequest struct {
 }
 
 // PushDataRequest 推送数据请求
+// FastGPT API 不需要 appId，使用 fastgptAppId 获取 API Key
 type PushDataRequest struct {
-	AppId        string     `json:"appId" binding:"Required"`
+	FastgptAppId string     `json:"fastgptAppId" binding:"Required"`
 	CollectionId string     `json:"collectionId" binding:"Required"`
 	TrainingType string     `json:"trainingType"`
 	Data         []DataItem `json:"data" binding:"Required"`
@@ -93,13 +103,14 @@ type DataItem struct {
 }
 
 // SearchTestRequest 搜索测试请求
+// FastGPT API 不需要 appId，使用 fastgptAppId 获取 API Key
 type SearchTestRequest struct {
-	AppId      string  `json:"appId" binding:"Required"`
-	DatasetId  string  `json:"datasetId" binding:"Required"`
-	Text       string  `json:"text" binding:"Required"`
-	Limit      int     `json:"limit"`
-	Similarity float64 `json:"similarity"`
-	SearchMode string  `json:"searchMode"`
+	FastgptAppId string  `json:"fastgptAppId" binding:"Required"`
+	DatasetId    string  `json:"datasetId" binding:"Required"`
+	Text         string  `json:"text" binding:"Required"`
+	Limit        int     `json:"limit"`
+	Similarity   float64 `json:"similarity"`
+	SearchMode   string  `json:"searchMode"`
 }
 
 // === FastGPT App 管理相关 DTO ===
@@ -151,4 +162,10 @@ type AppListResponse struct {
 // CreateAppResponse 创建应用响应
 type CreateAppResponse struct {
 	Name string `json:"name"`
+}
+
+// SSEMessage SSE 消息结构（用于流式输出）
+type SSEMessage struct {
+	Data  string `json:"data"`
+	Event string `json:"event,omitempty"`
 }

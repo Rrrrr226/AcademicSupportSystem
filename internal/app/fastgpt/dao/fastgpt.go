@@ -28,7 +28,7 @@ func (u *fastgpt) CreateApp(app *model.FastgptApp) error {
 // GetAppByID 根据 AppID 获取应用
 func (u *fastgpt) GetAppByID(appID string) (*model.FastgptApp, error) {
 	var app model.FastgptApp
-	err := u.Where("app_id = ?", appID).First(&app).Error
+	err := u.Where("id = ?", appID).First(&app).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("应用不存在或已禁用")

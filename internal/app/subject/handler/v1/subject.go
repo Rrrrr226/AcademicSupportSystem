@@ -4,6 +4,8 @@ import (
 	"HelpStudent/core/auth"
 	"HelpStudent/core/logx"
 	"HelpStudent/core/middleware/response"
+	fastgptDAO "HelpStudent/internal/app/fastgpt/dao"
+	fastgptModel "HelpStudent/internal/app/fastgpt/model"
 	"HelpStudent/internal/app/subject/dao"
 	"HelpStudent/internal/app/subject/dto"
 	"HelpStudent/internal/app/subject/model"
@@ -91,12 +93,40 @@ func GetSubjectLink(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 		}
 	}
 
+	var finalResult []dto.SubjectItem
+	appMap := make(map[string]string)
+
+	if fastgptDAO.FastgptApp != nil && len(result) > 0 {
+		var appNames []string
+		for _, s := range result {
+			appNames = append(appNames, s.SubjectName)
+		}
+		var apps []fastgptModel.FastgptApp
+		if err := fastgptDAO.FastgptApp.Where("app_name IN ?", appNames).Find(&apps).Error; err == nil {
+			for _, app := range apps {
+				appMap[app.AppName] = app.ID
+			}
+		} else {
+			logx.SystemLogger.Errorw("Failed to fetch fastgpt apps", zap.Error(err))
+		}
+	}
+
+	for _, s := range result {
+		item := dto.SubjectItem{
+			Subject: s,
+		}
+		if appId, ok := appMap[s.SubjectName]; ok {
+			item.AppID = appId
+		}
+		finalResult = append(finalResult, item)
+	}
+
 	logx.SystemLogger.Infow("Final result before response",
 		zap.String("staffId", staffId),
-		zap.Any("result", result))
+		zap.Any("result", finalResult))
 
 	response.HTTPSuccess(r, dto.GetSubjectResp{
-		Subjects: result,
+		Subjects: finalResult,
 	})
 }
 
@@ -387,14 +417,8 @@ func DeleteUserSubjectHandler(r flamego.Render, c flamego.Context) {
 		return
 	}
 
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		response.HTTPFail(r, 400002, "无效的ID格式")
-		return
-	}
-
 	// 删除记录
-	result := dao.Subject.Where("id = ?", uint(id)).Delete(&model.UserSubject{})
+	result := dao.Subject.Where("id = ?", idStr).Delete(&model.UserSubject{})
 	if result.Error != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), result.Error)
 		response.ServiceErr(r, result.Error)

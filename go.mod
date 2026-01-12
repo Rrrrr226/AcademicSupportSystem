@@ -11,6 +11,7 @@ require (
 	github.com/flamego/binding v1.3.0
 	github.com/flamego/cors v1.2.1
 	github.com/flamego/flamego v1.9.4
+	github.com/flamego/sse v1.2.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/getsentry/sentry-go v0.27.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
@@ -55,7 +56,6 @@ require (
 	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/flamego/sse v1.2.0 // indirect
 	github.com/flamego/validator v1.0.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/go-kit/kit v0.13.0 // indirect

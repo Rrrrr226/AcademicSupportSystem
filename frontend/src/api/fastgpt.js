@@ -29,3 +29,52 @@ export const deleteApp = (token, id) => {
         headers: getAuthHeader(token)
     });
 };
+
+// Chat Interfaces
+export const chatCompletion = async (data) => {
+    const token = localStorage.getItem('token');
+    if (data.stream) {
+        // Return fetch promise for streaming
+        return fetch(`${BASE_URL}/fastgpt/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeader(token)
+            },
+            body: JSON.stringify(data)
+        });
+    }
+    // Standard axios for non-stream
+    return axios.post(`${BASE_URL}/fastgpt/v1/chat/completions`, data, {
+        headers: getAuthHeader(token)
+    });
+};
+
+export const getHistories = (data) => {
+    const token = localStorage.getItem('token');
+    return axios.post(`${BASE_URL}/fastgpt/core/chat/history/getHistories`, data, {
+        headers: getAuthHeader(token)
+    });
+};
+
+export const getPaginationRecords = (data) => {
+    const token = localStorage.getItem('token');
+    return axios.post(`${BASE_URL}/fastgpt/core/chat/getPaginationRecords`, data, {
+        headers: getAuthHeader(token)
+    });
+};
+
+export const updateHistory = (data) => {
+    const token = localStorage.getItem('token');
+    return axios.post(`${BASE_URL}/fastgpt/core/chat/history/updateHistory`, data, {
+        headers: getAuthHeader(token)
+    });
+};
+
+export const delHistory = (appId, chatId) => {
+    const token = localStorage.getItem('token');
+    return axios.delete(`${BASE_URL}/fastgpt/core/chat/history/delHistory`, {
+        params: { appId, chatId },
+        headers: getAuthHeader(token)
+    });
+};

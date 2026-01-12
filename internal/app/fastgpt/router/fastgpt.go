@@ -1,31 +1,22 @@
 package router
 
 import (
-	"HelpStudent/core/middleware/response"
 	"HelpStudent/core/middleware/web"
 	"HelpStudent/internal/app/fastgpt/dto"
 	handler "HelpStudent/internal/app/fastgpt/handler/v1"
-	"errors"
 
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
+	"github.com/flamego/sse"
 )
 
 func AppFastgptInit(e *flamego.Flame) {
-	e.Get("/fastgpt/v1", func(r flamego.Render) {
-		response.HTTPSuccess(r, map[string]any{
-			"message": "fastgpt Init Success",
-		})
-	})
-
-	e.Get("/fastgpt/v1/err", func(r flamego.Render) {
-		response.HTTPFail(r, 500000, "fastgpt Init test error", errors.New("this is err"))
-	})
-
 	// FastGPT API 转发接口（需要登录）
 	e.Group("/fastgpt", func() {
-		// Chat 接口 - 支持流式输出
+		// Chat 接口 - 非流式
 		e.Post("/v1/chat/completions", binding.JSON(dto.ChatCompletionRequest{}), handler.HandleChatCompletion)
+		// Chat 接口 - 流式输出（使用 flamego/sse）
+		e.Post("/v1/chat/completions/stream", binding.JSON(dto.ChatCompletionRequest{}), sse.Bind(dto.SSEMessage{}), handler.HandleStreamChatCompletion)
 
 		// Chat History 接口
 		e.Group("/core/chat", func() {
