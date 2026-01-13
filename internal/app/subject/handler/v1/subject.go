@@ -95,6 +95,8 @@ func GetSubjectLink(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 
 	var finalResult []dto.SubjectItem
 	appMap := make(map[string]string)
+	fastgptAppIdMap := make(map[string]string)
+	shareIdMap := make(map[string]string)
 
 	if fastgptDAO.FastgptApp != nil && len(result) > 0 {
 		var appNames []string
@@ -105,6 +107,8 @@ func GetSubjectLink(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 		if err := fastgptDAO.FastgptApp.Where("app_name IN ?", appNames).Find(&apps).Error; err == nil {
 			for _, app := range apps {
 				appMap[app.AppName] = app.ID
+				fastgptAppIdMap[app.AppName] = app.AppId
+				shareIdMap[app.AppName] = app.ShareId
 			}
 		} else {
 			logx.SystemLogger.Errorw("Failed to fetch fastgpt apps", zap.Error(err))
@@ -117,6 +121,12 @@ func GetSubjectLink(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 		}
 		if appId, ok := appMap[s.SubjectName]; ok {
 			item.AppID = appId
+		}
+		if fastgptAppId, ok := fastgptAppIdMap[s.SubjectName]; ok {
+			item.FastgptAppId = fastgptAppId
+		}
+		if shareId, ok := shareIdMap[s.SubjectName]; ok {
+			item.ShareId = shareId
 		}
 		finalResult = append(finalResult, item)
 	}

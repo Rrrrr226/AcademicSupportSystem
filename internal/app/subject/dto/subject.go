@@ -20,7 +20,9 @@ type UpdateSubjectReq struct {
 
 type SubjectItem struct {
 	model.Subject
-	AppID string `json:"app_id"`
+	AppID        string `json:"app_id"`         // 我们系统的 ID
+	FastgptAppId string `json:"fastgpt_app_id"` // FastGPT 的应用 ID
+	ShareId      string `json:"share_id"`
 }
 
 type GetSubjectResp struct {

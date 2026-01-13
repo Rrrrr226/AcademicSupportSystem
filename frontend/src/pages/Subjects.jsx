@@ -38,7 +38,9 @@ const Subjects = () => {
           subjects = subjects.map(item => ({
             subject_name: item.subject_name || item.name || item.SubjectName,
             subject_link: item.subject_link || item.link || item.SubjectLink,
-            app_id: item.app_id
+            app_id: item.app_id,              // 我们系统的 ID
+            fastgpt_app_id: item.fastgpt_app_id, // FastGPT 的 AppId
+            share_id: item.share_id
           }));
         } else {
           subjects = [];
@@ -54,7 +56,14 @@ const Subjects = () => {
 
   const handleSubjectClick = (item) => {
     if (item.app_id) {
-      navigate('/chat', { state: { appId: item.app_id, title: item.subject_name } });
+      navigate('/chat', {
+        state: {
+          id: item.app_id,                    // 我们系统的 ID -> fastgptAppId
+          appId: item.fastgpt_app_id,         // FastGPT 的 AppId -> appId
+          shareId: item.share_id,
+          title: item.subject_name
+        }
+      });
     } else if (item.subject_link) {
       window.open(item.subject_link, '_blank');
     } else {

@@ -5,13 +5,19 @@ import (
 	"HelpStudent/internal/app/fastgpt/dto"
 	handler "HelpStudent/internal/app/fastgpt/handler/v1"
 
+	"HelpStudent/core/middleware/sse"
+
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
-	"github.com/flamego/sse"
 )
 
 func AppFastgptInit(e *flamego.Flame) {
 	// FastGPT API 转发接口（需要登录）
+
+	e.Group("/api", func() {
+		// ![](/api/system/img/6893942d1d6b742a7c4aac92.jpeg)
+		e.Get("/system/img/{imageId}", handler.HandleGetImage)
+	})
 	e.Group("/fastgpt", func() {
 		// Chat 接口 - 非流式
 		e.Post("/v1/chat/completions", binding.JSON(dto.ChatCompletionRequest{}), handler.HandleChatCompletion)
@@ -24,6 +30,7 @@ func AppFastgptInit(e *flamego.Flame) {
 			e.Post("/history/updateHistory", binding.JSON(dto.UpdateHistoryRequest{}), handler.HandleUpdateHistory)
 			e.Delete("/history/delHistory", handler.HandleDelHistory)
 			e.Post("/getPaginationRecords", binding.JSON(dto.GetPaginationRecordsRequest{}), handler.HandleGetPaginationRecords)
+			e.Post("/quote/getCollectionQuote", binding.JSON(dto.GetCollectionQuoteRequest{}), handler.HandleGetCollectionQuote)
 		})
 
 		// Dataset 接口

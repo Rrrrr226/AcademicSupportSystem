@@ -1,6 +1,12 @@
 package v1
 
 import (
+	"bufio"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
 	"HelpStudent/config"
 	"HelpStudent/core/auth"
 	"HelpStudent/core/logx"
@@ -8,9 +14,6 @@ import (
 	"HelpStudent/internal/app/fastgpt/dao"
 	"HelpStudent/internal/app/fastgpt/dto"
 	"HelpStudent/internal/app/fastgpt/service"
-	"bufio"
-	"net/http"
-	"strings"
 
 	"github.com/flamego/binding"
 	"github.com/flamego/flamego"
@@ -20,6 +23,63 @@ import (
 func getFastGPTClient(apiKey string) *service.FastGPTClient {
 	cfg := config.GetConfig()
 	return service.NewFastGPTClient(cfg.FastGPT.BaseURL, apiKey)
+}
+
+// HandleGetImage 代理图片请求到 FastGPT
+// 路由: GET /api/system/img/:imageId
+func HandleGetImage(c flamego.Context, r flamego.Render) {
+	imageId := c.Param("imageId")
+	if imageId == "" {
+		response.HTTPFail(r, 400001, "缺少图片ID")
+		return
+	}
+
+	cfg := config.GetConfig()
+	imageURL := cfg.FastGPT.BaseURL + "/system/img/" + imageId
+
+	// 创建 HTTP 客户端请求
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	req, err := http.NewRequest("GET", imageURL, nil)
+	if err != nil {
+		response.ServiceErr(r, err)
+		return
+	}
+
+	// 设置请求头，保持与原始请求一致
+	req.Header.Set("Accept", "image/*,*/*")
+	req.Header.Set("User-Agent", c.Request().Header.Get("User-Agent"))
+
+	// 发送请求
+	resp, err := client.Do(req)
+	if err != nil {
+		response.ServiceErr(r, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		response.HTTPFail(r, 500001, "FastGPT API 调用失败")
+		return
+	}
+
+	// 设置响应头
+	contentType := resp.Header.Get("Content-Type")
+	if contentType != "" {
+		c.ResponseWriter().Header().Set("Content-Type", contentType)
+	}
+	contentLength := resp.Header.Get("Content-Length")
+	if contentLength != "" {
+		c.ResponseWriter().Header().Set("Content-Length", contentLength)
+	}
+	// 设置缓存头
+	c.ResponseWriter().Header().Set("Cache-Control", "public, max-age=86400")
+
+	// 将图片内容写入响应
+	c.ResponseWriter().WriteHeader(http.StatusOK)
+	io.Copy(c.ResponseWriter(), resp.Body)
 }
 
 // HandleChatCompletion 处理聊天补全请求
@@ -64,10 +124,21 @@ func HandleChatCompletion(c flamego.Context, r flamego.Render, req dto.ChatCompl
 	c.ResponseWriter().Write(respBody)
 }
 
+// sendSSEMessage 安全地发送 SSE 消息，捕获可能的 panic
+func sendSSEMessage(msg chan<- *dto.SSEMessage, message *dto.SSEMessage) (sent bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			sent = false
+		}
+	}()
+	msg <- message
+	return true
+}
+
 // HandleStreamChatCompletion 处理流式聊天补全请求（使用 flamego/sse）
 func HandleStreamChatCompletion(c flamego.Context, req dto.ChatCompletionRequest, errs binding.Errors, authInfo auth.Info, msg chan<- *dto.SSEMessage) {
 	if errs != nil {
-		msg <- &dto.SSEMessage{Data: `{"error":"参数错误"}`, Event: "error"}
+		sendSSEMessage(msg, &dto.SSEMessage{Data: `{"error":"参数错误"}`, Event: "error"})
 		return
 	}
 
@@ -75,7 +146,7 @@ func HandleStreamChatCompletion(c flamego.Context, req dto.ChatCompletionRequest
 	app, err := dao.FastgptApp.GetAppByID(req.FastgptAppId)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		msg <- &dto.SSEMessage{Data: `{"error":"应用不存在或已禁用"}`, Event: "error"}
+		sendSSEMessage(msg, &dto.SSEMessage{Data: `{"error":"应用不存在或已禁用"}`, Event: "error"})
 		return
 	}
 
@@ -86,14 +157,14 @@ func HandleStreamChatCompletion(c flamego.Context, req dto.ChatCompletionRequest
 	resp, err := getFastGPTClient(app.APIKey).ForwardStreamRequest("POST", "/v1/chat/completions", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		msg <- &dto.SSEMessage{Data: `{"error":"请求失败"}`, Event: "error"}
+		sendSSEMessage(msg, &dto.SSEMessage{Data: `{"error":"请求失败"}`, Event: "error"})
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		logx.SystemLogger.CtxError(c.Request().Context(), "FastGPT API error: status=%d", resp.StatusCode)
-		msg <- &dto.SSEMessage{Data: `{"error":"FastGPT API 调用失败"}`, Event: "error"}
+		sendSSEMessage(msg, &dto.SSEMessage{Data: `{"error":"FastGPT API 调用失败"}`, Event: "error"})
 		return
 	}
 
@@ -110,7 +181,10 @@ func HandleStreamChatCompletion(c flamego.Context, req dto.ChatCompletionRequest
 		// 解析 SSE 格式数据
 		if strings.HasPrefix(line, "data: ") {
 			data := strings.TrimPrefix(line, "data: ")
-			msg <- &dto.SSEMessage{Data: data}
+			if !sendSSEMessage(msg, &dto.SSEMessage{Data: data}) {
+				// 客户端已断开连接
+				return
+			}
 
 			// 检查是否是结束标记
 			if data == "[DONE]" {
@@ -131,23 +205,19 @@ func HandleGetHistories(c flamego.Context, r flamego.Render, req dto.GetHistorie
 		return
 	}
 
-	// 使用 appId 获取 API Key（FastGPT 也需要 appId 字段）
-	app, err := dao.FastgptApp.GetAppByID(req.AppId)
+	app, err := dao.FastgptApp.GetAppByID(req.FastgptAppId)
 	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
 		return
 	}
 
-	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequest("POST", "/core/chat/history/getHistories", req)
+	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequest("POST", "/core/chat/getHistories", req)
 	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
 		return
 	}
 
 	if statusCode != http.StatusOK {
-		logx.SystemLogger.CtxError(c.Request().Context(), "FastGPT API error: status=%d, body=%s", statusCode, string(respBody))
 		response.HTTPFail(r, 500001, "FastGPT API 调用失败")
 		return
 	}
@@ -164,8 +234,13 @@ func HandleUpdateHistory(c flamego.Context, r flamego.Render, req dto.UpdateHist
 		return
 	}
 
-	// 使用 appId 获取 API Key（FastGPT 也需要 appId 字段）
+	// 使用 appId 获取 API Key
 	app, err := dao.FastgptApp.GetAppByID(req.AppId)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
 
 	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequest("POST", "/core/chat/history/updateHistory", req)
 	if err != nil {
@@ -230,8 +305,8 @@ func HandleGetPaginationRecords(c flamego.Context, r flamego.Render, req dto.Get
 		return
 	}
 
-	// 使用 appId 获取 API Key（FastGPT 也需要 appId 字段）
-	app, err := dao.FastgptApp.GetAppByID(req.AppId)
+	// 使用 fastgptAppId 获取 API Key
+	app, err := dao.FastgptApp.GetAppByID(req.FastgptAppId)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
@@ -503,6 +578,39 @@ func HandleSearchTest(c flamego.Context, r flamego.Render, req dto.SearchTestReq
 	}
 
 	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequest("POST", "/core/dataset/searchTest", req)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	if statusCode != http.StatusOK {
+		logx.SystemLogger.CtxError(c.Request().Context(), "FastGPT API error: status=%d, body=%s", statusCode, string(respBody))
+		response.HTTPFail(r, 500001, "FastGPT API 调用失败")
+		return
+	}
+
+	c.ResponseWriter().Header().Set("Content-Type", "application/json")
+	c.ResponseWriter().WriteHeader(http.StatusOK)
+	c.ResponseWriter().Write(respBody)
+}
+
+// HandleGetCollectionQuote 获取集合引用详情
+// 路由: POST /fastgpt/core/chat/quote/getCollectionQuote
+func HandleGetCollectionQuote(c flamego.Context, r flamego.Render, req dto.GetCollectionQuoteRequest, errs binding.Errors, authInfo auth.Info) {
+	if errs != nil {
+		response.InValidParam(r, errs)
+		return
+	}
+
+	app, err := dao.FastgptApp.GetAppByID(req.FastgptAppId)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequest("POST", "/core/chat/quote/getCollectionQuote", req)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)

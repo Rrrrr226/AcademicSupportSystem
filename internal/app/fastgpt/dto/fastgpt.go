@@ -21,10 +21,12 @@ type Message struct {
 // GetHistoriesRequest 获取聊天历史列表请求
 // FastGPT API 需要 appId 字段，所以保留
 type GetHistoriesRequest struct {
-	AppId    string `json:"appId" binding:"Required"`
-	Offset   int    `json:"offset"`
-	PageSize int    `json:"pageSize"`
-	Source   string `json:"source"`
+	FastgptAppId string `json:"fastgptAppId" binding:"Required"`
+	Offset       int    `json:"offset"`
+	PageSize     int    `json:"pageSize"`
+	Source       string `json:"source"`
+	ShareId      string `json:"shareId"`
+	OutLinkUid   string `json:"outLinkUid"`
 }
 
 // UpdateHistoryRequest 更新聊天会话请求
@@ -39,6 +41,7 @@ type UpdateHistoryRequest struct {
 // GetPaginationRecordsRequest 获取聊天记录请求
 // FastGPT API 需要 appId 字段，所以保留
 type GetPaginationRecordsRequest struct {
+	FastgptAppId        string `json:"fastgptAppId" binding:"Required"`
 	AppId               string `json:"appId" binding:"Required"`
 	ChatId              string `json:"chatId" binding:"Required"`
 	Offset              int    `json:"offset"`
@@ -118,6 +121,8 @@ type SearchTestRequest struct {
 // CreateAppRequest 创建应用请求
 type CreateAppRequest struct {
 	AppName     string `json:"appName" binding:"Required"`
+	AppId       string `json:"appId" binding:"Required"`
+	ShareId     string `json:"shareId"`
 	APIKey      string `json:"apiKey" binding:"Required"`
 	Description string `json:"description"`
 }
@@ -126,6 +131,8 @@ type CreateAppRequest struct {
 type UpdateAppRequest struct {
 	ID          string `json:"id" binding:"Required"`
 	AppName     string `json:"appName"`
+	AppId       string `json:"appId"`
+	ShareId     string `json:"shareId"`
 	APIKey      string `json:"apiKey"`
 	Description string `json:"description"`
 	Status      *int   `json:"status"`
@@ -146,6 +153,8 @@ type GetAppListRequest struct {
 type AppItem struct {
 	ID          string `json:"id"`
 	AppName     string `json:"appName"`
+	AppId       string `json:"appId"`
+	ShareId     string `json:"shareId"`
 	APIKey      string `json:"apiKey"`
 	Description string `json:"description"`
 	CreatedBy   string `json:"createdBy"`
@@ -168,4 +177,18 @@ type CreateAppResponse struct {
 type SSEMessage struct {
 	Data  string `json:"data"`
 	Event string `json:"event,omitempty"`
+}
+
+// GetCollectionQuoteRequest 获取集合引用请求
+type GetCollectionQuoteRequest struct {
+	FastgptAppId   string `json:"fastgptAppId" binding:"Required"` // 用于获取 API Key
+	InitialId      string `json:"initialId"`
+	InitialIndex   int    `json:"initialIndex"`
+	PageSize       int    `json:"pageSize"`
+	CollectionId   string `json:"collectionId" binding:"Required"`
+	ChatItemDataId string `json:"chatItemDataId"`
+	ChatId         string `json:"chatId"`
+	AppId          string `json:"appId"`
+	ShareId        string `json:"shareId"`
+	OutLinkUid     string `json:"outLinkUid"`
 }

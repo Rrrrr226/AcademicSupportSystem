@@ -46,12 +46,16 @@ const FastGPTAppsTab = () => {
         response = await updateFastgptApp({
           id: editingFastgptApp.id,
           appName: values.appName,
+          appId: values.appId,
+          shareId: values.shareId,
           apiKey: values.apiKey,
           description: values.description
         }, token);
       } else {
         response = await createFastgptApp({
           appName: values.appName,
+          appId: values.appId,
+          shareId: values.shareId,
           apiKey: values.apiKey,
           description: values.description
         }, token);
@@ -98,6 +102,8 @@ const FastGPTAppsTab = () => {
     setEditingFastgptApp(record);
     form.setFieldsValue({
       appName: record.appName,
+      appId: record.appId,
+      shareId: record.shareId,
       apiKey: record.apiKey,
       description: record.description
     });
@@ -110,9 +116,29 @@ const FastGPTAppsTab = () => {
 
   const columns = [
     { title: '学科名称', dataIndex: 'appName', key: 'appName' },
-    { 
-      title: '密钥', 
-      dataIndex: 'apiKey', 
+    {
+      title: 'AppId',
+      dataIndex: 'appId',
+      key: 'appId',
+      render: (text) => (
+        <Tag color="green" style={{ fontFamily: 'monospace' }}>
+          {text ? (text.length > 16 ? text.substring(0, 8) + '...' + text.substring(text.length - 4) : text) : '-'}
+        </Tag>
+      )
+    },
+    {
+      title: 'ShareId',
+      dataIndex: 'shareId',
+      key: 'shareId',
+      render: (text) => (
+        <Tag color="orange" style={{ fontFamily: 'monospace' }}>
+          {text ? (text.length > 16 ? text.substring(0, 8) + '...' + text.substring(text.length - 4) : text) : '-'}
+        </Tag>
+      )
+    },
+    {
+      title: '密钥',
+      dataIndex: 'apiKey',
       key: 'apiKey',
       render: (text) => (
         <Tag color="blue" style={{ fontFamily: 'monospace' }}>
@@ -121,7 +147,7 @@ const FastGPTAppsTab = () => {
       )
     },
     { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
-    { 
+    {
       title: '操作',
       key: 'action',
       render: (_, record) => (
@@ -178,6 +204,19 @@ const FastGPTAppsTab = () => {
             rules={[{ required: true, message: '请输入学科名称' }]}
           >
             <Input placeholder="给学科起个名字" />
+          </Form.Item>
+          <Form.Item
+            name="appId"
+            label="AppId"
+            rules={[{ required: true, message: '请输入 FastGPT AppId' }]}
+          >
+            <Input placeholder="FastGPT 应用ID" />
+          </Form.Item>
+          <Form.Item
+            name="shareId"
+            label="ShareId"
+          >
+            <Input placeholder="FastGPT 分享链接ID（可选）" />
           </Form.Item>
           <Form.Item
             name="apiKey"

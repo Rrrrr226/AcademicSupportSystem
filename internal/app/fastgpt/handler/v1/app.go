@@ -43,6 +43,8 @@ func HandleCreateApp(c flamego.Context, r flamego.Render, req dto.CreateAppReque
 	// 创建应用
 	app := &model.FastgptApp{
 		AppName:     req.AppName,
+		AppId:       req.AppId,
+		ShareId:     req.ShareId,
 		APIKey:      req.APIKey,
 		Description: req.Description,
 		CreatedBy:   authInfo.Uid,
@@ -85,6 +87,8 @@ func HandleGetAppList(c flamego.Context, r flamego.Render, req dto.GetAppListReq
 		appItems = append(appItems, dto.AppItem{
 			ID:          app.ID,
 			AppName:     app.AppName,
+			AppId:       app.AppId,
+			ShareId:     app.ShareId,
 			APIKey:      app.APIKey,
 			Description: app.Description,
 			CreatedBy:   app.CreatedBy,
@@ -128,6 +132,12 @@ func HandleUpdateApp(c flamego.Context, r flamego.Render, req dto.UpdateAppReque
 	updates := make(map[string]interface{})
 	if req.AppName != "" {
 		updates["app_name"] = req.AppName
+	}
+	if req.AppId != "" {
+		updates["app_id"] = req.AppId
+	}
+	if req.ShareId != "" {
+		updates["share_id"] = req.ShareId
 	}
 	if req.APIKey != "" {
 		updates["api_key"] = req.APIKey

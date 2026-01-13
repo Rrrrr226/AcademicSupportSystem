@@ -1,36 +1,301 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Button, List, Typography, message, Spin, Empty, theme, Avatar } from 'antd';
-import { PlusOutlined, DeleteOutlined, LeftOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons';
-// Assuming @ant-design/x is installed. If not, this line needs the package.
-import { Bubble, Sender } from '@ant-design/x'; 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { message, theme, Typography, Space, Avatar, Button, Modal, Drawer, Collapse, Tag, Image } from 'antd';
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  LeftOutlined,
+  RightOutlined,
+  UserOutlined,
+  RobotOutlined,
+  EditOutlined,
+  ShareAltOutlined,
+  FileTextOutlined,
+  ClockCircleOutlined,
+  ReadOutlined,
+  CaretRightOutlined,
+  CloseOutlined,
+  UpOutlined,
+  DownOutlined
+} from '@ant-design/icons';
+import {
+  Bubble,
+  Sender,
+  Conversations,
+  Prompts,
+  XProvider,
+  Think,
+} from '@ant-design/x';
 import { chatCompletion, getHistories, getPaginationRecords, delHistory } from '../api/fastgpt';
+import { BASE_URL } from '../api/config';
 
-const { Sider, Content, Header } = Layout;
-const { Text, Title } = Typography;
+// 解析 value 数组，返回结构化的内容列表
+const parseMessageValue = (value) => {
+  if (!Array.isArray(value)) {
+    return [{ type: 'text', content: String(value || '') }];
+  }
+  
+  return value.map(item => {
+    if (item.type === 'text') {
+       return { type: 'text', content: item.text?.content || '' };
+    }
+    if (item.type === 'interactive') {
+       return { type: 'interactive', interactive: item.interactive };
+    }
+    if (item.type === 'reasoning') {
+       return { type: 'reasoning', content: item.reasoning?.content || '' };
+    }
+    return null;
+  }).filter(Boolean);
+};
+
+// 引用列表组件
+const ReferenceList = ({ quotes }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+
+  if (!quotes || quotes.length === 0) return null;
+
+  const handleOpenQuote = (index) => {
+    setCurrentIndex(index);
+    setIsOpen(true);
+  };
+
+  const handlePrev = () => {
+     setCurrentIndex(prev => (prev > 0 ? prev - 1 : quotes.length - 1));
+  };
+  
+  const handleNext = () => {
+     setCurrentIndex(prev => (prev < quotes.length - 1 ? prev + 1 : 0));
+  };
+
+  const getSafeContent = (val) => {
+      if (typeof val === 'string') return val;
+      if (typeof val === 'number') return String(val);
+      if (!val) return '';
+      if (typeof val === 'object') {
+          // Handle object with value property (e.g. from some parsers or highlighters)
+          if (val.value) return getSafeContent(val.value);
+          // Handle object with content property
+          if (val.content) return getSafeContent(val.content);
+          // Fallback to empty string to prevent React crash
+          return '';
+      }
+      return String(val);
+  };
+
+  const currentQuote = quotes[currentIndex];
+  const visibleQuotes = expanded ? quotes : quotes.slice(0, 1);
+  const safeSourceName = getSafeContent(currentQuote?.sourceName);
+  const safeTitle = getSafeContent(currentQuote?.title);
+  const safeBody = getSafeContent(currentQuote?.q || currentQuote?.content || '无内容');
+
+  return (
+    <div style={{ marginTop: 8 }}>
+       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+           {visibleQuotes.map((q, idx) => (
+              <div 
+                 key={idx} 
+                 style={{ 
+                    cursor: 'pointer', 
+                    padding: '8px', 
+                    background: '#f9f9f9', 
+                    borderRadius: 4, 
+                    border: '1px solid #eee',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: 12
+                 }}
+                 onClick={() => handleOpenQuote(idx)}
+              >
+                  <FileTextOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                  <Typography.Text ellipsis style={{ flex: 1, color: '#1890ff' }}>
+                      {getSafeContent(q.sourceName) || `Reference ${idx + 1}`}
+                  </Typography.Text>
+              </div>
+           ))}
+           {quotes.length > 1 && (
+               <div 
+                 style={{ 
+                    fontSize: 12, 
+                    color: '#999', 
+                    cursor: 'pointer', 
+                    paddingLeft: 8,
+                    marginTop: 4
+                 }}
+                 onClick={() => setExpanded(!expanded)}
+               >
+                   {expanded ? '收起引用' : `查看全部 ${quotes.length} 条引用`}
+               </div>
+           )}
+       </div>
+
+       <Drawer
+          title={null}
+          placement="right"
+          closable={false}
+          onClose={() => setIsOpen(false)}
+          open={isOpen}
+          width={600}
+          styles={{ body: { padding: 0 }, header: { display: 'none' } }}
+       >
+          {/* Header */}
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flex: 1, overflow: 'hidden', marginRight: 16 }}>
+                  <FileTextOutlined style={{ fontSize: 20, color: '#ff4d4f', marginRight: 12 }} />
+                  <Typography.Text ellipsis strong style={{ fontSize: 16 }}>
+                      {safeSourceName || "引用详情"}
+                  </Typography.Text>
+              </div>
+              <Button type="text" icon={<CloseOutlined />} onClick={() => setIsOpen(false)} />
+          </div>
+
+          {/* Navigation & Meta Bar */}
+           <div style={{ padding: '12px 24px', background: '#fafafa', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+               <Space>
+                   <Tag>引用 {currentIndex + 1} / {quotes.length}</Tag>
+                   {/* 假设有 score 字段，如果没有则不显示 */}
+                   {currentQuote?.score && <Tag color="green">综合排名: {getSafeContent(currentQuote.score)}</Tag>}
+               </Space>
+               
+               <Space>
+                   <Button size="small" icon={<LeftOutlined />} onClick={handlePrev} disabled={quotes.length <= 1}/>
+                   <Button size="small" icon={<RightOutlined />} onClick={handleNext} disabled={quotes.length <= 1}/>
+               </Space>
+           </div>
+           
+           {/* Disclaimer */}
+           <div style={{ padding: '8px 24px', background: '#fffbe6', fontSize: 12, color: '#faad14' }}>
+               此处仅显示实际引用内容，若数据有更新，此处不会实时更新
+           </div>
+
+           {/* Content */}
+           <div style={{ padding: '24px', overflowY: 'auto', height: 'calc(100% - 130px)' }}>
+                {safeTitle && <Typography.Title level={4} style={{marginTop: 0}}>{safeTitle}</Typography.Title>}
+                
+               <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                      img: ({node, ...props}) => {
+                         let src = props.src;
+                         // Handle relative API paths by prepending backend URL
+                         if (src && src.startsWith('/api')) {
+                             src = `${BASE_URL}${src}`;
+                         }
+                         return (
+                            <Image 
+                              {...props} 
+                              src={src} 
+                              style={{ maxWidth: '100%', borderRadius: 8, margin: '8px 0', objectFit: 'contain' }} 
+                            />
+                         );
+                      },
+                      p: ({node, ...props}) => <Typography.Paragraph {...props} />,
+                      h1: ({node, ...props}) => <Typography.Title level={3} {...props} />,
+                      h2: ({node, ...props}) => <Typography.Title level={4} {...props} />,
+                      h3: ({node, ...props}) => <Typography.Title level={5} {...props} />,
+                      code: ({node, inline, className, children, ...props}) => {
+                          const match = /language-(\w+)/.exec(className || '');
+                          return !inline ? (
+                            <pre style={{ background: '#f5f5f5', padding: 8, borderRadius: 4 }}>
+                               <code className={className} {...props}>
+                                  {children}
+                               </code>
+                            </pre>
+                          ) : (
+                            <code style={{ background: '#f5f5f5', padding: '2px 4px', borderRadius: 2 }} {...props}>
+                                {children}
+                            </code>
+                          );
+                      }
+                  }}
+              >
+                  {safeBody}
+              </ReactMarkdown>
+           </div>
+       </Drawer>
+    </div>
+  );
+};
+
+
+// 交互式选项组件
+const InteractiveOptions = ({ interactive, onSelect }) => {
+  if (!interactive || interactive.type !== 'userSelect') return null;
+
+  const { params } = interactive;
+  if (!params) return null;
+
+  const { description, userSelectOptions, userSelectedVal } = params;
+
+  // 如果已经选过了，就只显示选中的那个（或者都不显示，根据设计。这里可以只显示结果）
+  // 用户需求：选择后发送消息。
+  
+  if (userSelectedVal) {
+     return (
+        <div style={{ marginTop: 8, padding: '12px', background: '#f5f5f5', borderRadius: 8 }}>
+            <Typography.Text type="secondary">已选择: {userSelectedVal}</Typography.Text>
+        </div>
+     );
+  }
+
+  return (
+    <div style={{ 
+        marginTop: 8, 
+        padding: 0, 
+        background: '#fff', 
+        borderRadius: 8, 
+        border: '1px solid #dae0e6',
+        overflow: 'hidden',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+    }}>
+      {description && (
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
+           <Typography.Text strong>{description}</Typography.Text>
+        </div>
+      )}
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {userSelectOptions?.map((option) => (
+            <Button 
+                key={option.key} 
+                block 
+                onClick={() => onSelect?.(option.value)}
+                style={{ textAlign: 'left' }}
+            >
+              {option.value}
+            </Button>
+          ))}
+      </div>
+    </div>
+  );
+};
+
 
 const Chat = () => {
-  const { token: { colorBgContainer, colorBorderSecondary } } = theme.useToken();
+  const { token } = theme.useToken();
   const location = useLocation();
   const navigate = useNavigate();
-  const { appId, title } = location.state || {}; // Get passed state
+  const { id, appId, shareId, title } = location.state || {}; 
+  const outLinkUid = localStorage.getItem('staffId');
 
   const [histories, setHistories] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(false); // Loading history list
-  const [sending, setSending] = useState(false); // Sending message
+  const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
   // Initial Load
   useEffect(() => {
-    if (!appId) {
+    if (!id) {
       message.error('缺少应用ID');
       navigate('/subjects');
       return;
     }
     loadHistories();
-  }, [appId, navigate]);
+  }, [id, navigate]);
 
   // Load messages when activeChatId changes
   useEffect(() => {
@@ -42,44 +307,49 @@ const Chat = () => {
   }, [activeChatId]);
 
   const loadHistories = async () => {
-    setLoading(true);
     try {
-      const res = await getHistories({ appId });
-      // Adjust according to actual response structure
-      // fastgpt usually returns data as array or { list: [] }
-      const list = res.data?.data || [];
+      const res = await getHistories({
+        fastgptAppId: id,
+        offset: 0,
+        pageSize: 50,
+        shareId: shareId || '',
+        outLinkUid: outLinkUid || ''
+      });
+      const data = res.data?.data;
+      const list = Array.isArray(data) ? data : (data?.list || []);
       setHistories(list);
-      
-      if (list.length > 0 && !activeChatId) {
-        // Automatically select first history? Or start new?
-        // Let's create new if empty, or just stay empty
-        // setActiveChatId(list[0].chatId);
-      }
     } catch (err) {
       console.error(err);
       message.error('加载历史会话失败');
-    } finally {
-      setLoading(false);
     }
   };
 
   const loadMessages = async (chatId) => {
     try {
-      // Assuming offset=0, pageSize=100 for simplicity
-      const res = await getPaginationRecords({ appId, chatId, offset: 0, pageSize: 50 });
-      const records = res.data?.data || [];
-      // Records might be in reverse order or need formatted
-      // FastGPT records usually: { role: 'user'/'assistant', content: '...' }
-      // We need to map to Bubble format
-      // Map and reverse if needed
-      const mapped = records.map(r => ({
-        key: r._id || Math.random().toString(),
-        role: r.obj === 'Human' || r.role === 'user' ? 'user' : 'ai',
-        content: r.value || r.content,
-      }));
-      // FastGPT histories often return latest first? Check API.
-      // Usually chat UI needs oldest first.
-      setMessages(mapped.reverse());
+      const res = await getPaginationRecords({
+        fastgptAppId: id,
+        appId: appId,
+        chatId,
+        offset: 0,
+        pageSize: 50,
+        loadCustomFeedbacks: false
+      });
+      const data = res.data?.data;
+      const records = Array.isArray(data) ? data : (data?.list || []);
+
+      const mapped = records.map(r => {
+        const parsedItems = parseMessageValue(r.value);
+        return {
+          key: r._id || r.dataId || Math.random().toString(),
+          role: r.obj === 'Human' ? 'user' : 'ai',
+          items: parsedItems,
+          totalQuoteList: r.totalQuoteList || [],
+          durationSeconds: r.durationSeconds,
+          time: r.time,
+        };
+      });
+
+      setMessages(mapped);
     } catch (err) {
       console.error(err);
       message.error('加载消息记录失败');
@@ -91,10 +361,9 @@ const Chat = () => {
     setMessages([]);
   };
 
-  const handleDeleteHistory = async (e, chatId) => {
-    e.stopPropagation();
+  const handleDeleteHistory = async (chatId) => {
     try {
-      await delHistory(appId, chatId);
+      await delHistory(id, chatId);
       message.success('删除成功');
       setHistories(prev => prev.filter(h => h.chatId !== chatId));
       if (activeChatId === chatId) {
@@ -105,51 +374,97 @@ const Chat = () => {
     }
   };
 
-  const onSend = async (val) => {
-    if (!val.trim()) return;
-    const currentInput = val;
+  // Check if last message is interactive and pending
+  const lastMsg = messages[messages.length - 1];
+  const isPendingInteractive = lastMsg?.role === 'ai' && lastMsg?.interactive && !lastMsg.interactive.params.userSelectedVal;
+
+  const onSend = async (val, interactiveParams = null) => {
+    const text = typeof val === 'string' ? val : '';
+    if (!text.trim()) return;
+    
+    // Optimistically update interactive state if this send is a response to it
+    if (interactiveParams) {
+        setMessages(prev => {
+            const newArr = [...prev];
+            const last = newArr[newArr.length - 1];
+            if (last && last.interactive) {
+                // Update local state to show selected
+                last.interactive.params.userSelectedVal = text;
+            }
+            return newArr;
+        });
+    }
+
+    const currentInput = text;
     setInputValue('');
     setSending(true);
 
-    const newMsg = { key: Date.now().toString(), role: 'user', content: currentInput };
+    const newMsg = { 
+        key: Date.now().toString(), 
+        role: 'user', 
+        items: [{ type: 'text', content: currentInput }],
+        totalQuoteList: [],
+        content: currentInput // legacy support for sending logic
+    };
     setMessages(prev => [...prev, newMsg]);
 
-    // Use existing chatId or generate/let backend generate
-    // For fastgpt, if we don't pass chatId, it might create one but we need to catch it.
-    // Ideally we generate a chatId on frontend for new chat if backend supports it, or use response.
-    // Let's rely on backend returning `chatId` or just using the one we have.
-    // If activeChatId is null, we generate one or wait for first response?
-    // FastGPT API usually accepts `chatId`. 
-    const targetChatId = activeChatId || Date.now().toString(); // Simple ID generation
+    const targetChatId = activeChatId || Date.now().toString(); 
     if (!activeChatId) {
         setActiveChatId(targetChatId);
-        // Optimistically add to history list?
-        // Better reload histories after first message
     }
 
     try {
-      // Stream handling
+      let requestMessages = [];
+      
+      if (interactiveParams) {
+          requestMessages = [
+              {
+                  dataId: Math.random().toString(36).substring(2, 15), 
+                  hideInUI: false,
+                  role: 'user',
+                  content: currentInput
+              }
+          ];
+      } else {
+          // Construct full context from existing messages
+          // Note: parseMessageValue changed output structure, so we need to reconstruct plain text content for context if backend expects it.
+          // Or backend expects structured 'value' array? 
+          // FastGPT usually supports 'content' string. 
+          // We need to flatten the items to string for context.
+          
+          requestMessages = [
+            ...messages.map(m => {
+                const combinedContent = m.items
+                    .filter(i => i.type === 'text')
+                    .map(i => i.content)
+                    .join('\n');
+                return { 
+                    role: m.role === 'user' ? 'user' : 'assistant', 
+                    content: combinedContent 
+                };
+            }), 
+            { role: 'user', content: currentInput } 
+          ];
+      }
+
       const response = await chatCompletion({
-        appId,
+        fastgptAppId: id,
         chatId: targetChatId,
         stream: true,
         detail: false,
-        messages: [
-          ...messages.map(m => ({ 
-              role: m.role === 'user' ? 'user' : 'assistant', 
-              content: m.content 
-          })), // Send full context? Or just last? FastGPT usually handles context if chatId is provided.
-          // Wait, FastGPT backend manages history. We typically ONLY send the NEW message if we provide chatId?
-          // Check `handler.HandleChatCompletion`. It forwards to FastGPT.
-          // FastGPT usually stores history. So we might need to send only the new message or last N messages.
-          // Sending ONLY the new message is safer if backend has state.
-          { role: 'user', content: currentInput } 
-        ]
+        shareId: shareId || '',
+        outLinkUid: outLinkUid || '',
+        messages: requestMessages
       });
 
-      // Prepare AI message placeholder
       const aiMsgKey = (Date.now() + 1).toString();
-      setMessages(prev => [...prev, { key: aiMsgKey, role: 'ai', content: '' }]);
+      // Initialize with empty items
+      setMessages(prev => [...prev, { 
+          key: aiMsgKey, 
+          role: 'ai', 
+          items: [{ type: 'text', content: '' }], 
+          totalQuoteList: [] 
+      }]);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -159,7 +474,6 @@ const Chat = () => {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value);
-        // Parse SSE format: data: {...}
         const lines = chunk.split('\n');
         for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -167,22 +481,24 @@ const Chat = () => {
                 if (jsonStr === '[DONE]') continue;
                 try {
                     const data = JSON.parse(jsonStr);
-                    // FastGPT stream chunk structure: choices[0].delta.content
                     const content = data.choices?.[0]?.delta?.content || '';
+                    // Note: Handle specialized chunks (ref, reasoning) here if FastGPT streams them separately.
+                    // For now assuming stream is just text content.
                     if (content) {
                         aiContent += content;
                         setMessages(prev => prev.map(m => 
-                            m.key === aiMsgKey ? { ...m, content: aiContent } : m
+                            m.key === aiMsgKey ? { 
+                                ...m, 
+                                items: [{ type: 'text', content: aiContent }] 
+                            } : m
                         ));
                     }
                 } catch (e) {
-                    // ignore parse error for partial chunks
                 }
             }
         }
       }
       
-      // Refresh history list if it was a new chat
       if (!histories.find(h => h.chatId === targetChatId)) {
         loadHistories();
       }
@@ -198,77 +514,311 @@ const Chat = () => {
     }
   };
 
+  const getGroupLabel = (time) => {
+    const date = new Date(time);
+    const now = new Date();
+    if (date.toDateString() === now.toDateString()) return '今天';
+    
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return '昨天';
+    
+    return '更早';
+  };
+
+  // 转换历史记录为 Conversations 需要的格式
+  const conversationItems = histories.map(h => ({
+    key: h.chatId,
+    label: h.title || '新对话',
+    icon: <EditOutlined />,
+    group: getGroupLabel(h.updateTime || Date.now()),
+  }));
+
+  // 转换消息为 Bubble 需要的格式
+  const bubbleItems = messages.flatMap(msg => {
+    // If loading
+    if(msg.role === 'ai' && msg.items.length === 0 && !msg.content && sending) {
+        return [{
+            key: msg.key,
+            placement: 'start',
+            loading: true,
+            avatar: <Avatar icon={<RobotOutlined />} style={{ backgroundColor: token.colorFillSecondary }} />,
+        }];
+    }
+
+    const bubbles = [];
+    let pendingReasoningNode = null;
+    
+    msg.items.forEach((item, idx) => {
+        let currentNode = null;
+
+        // 1. Build the node for current item
+        if (item.type === 'reasoning') {
+             currentNode = (
+                  <Collapse
+                     ghost
+                     expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
+                     items={[{
+                        key: '1',
+                        label: (
+                           <Space>
+                              <Typography.Text type="secondary">思考过程</Typography.Text>
+                              {item.duration && <Tag>{item.duration}s</Tag>}
+                           </Space>
+                        ),
+                        children: <Typography.Text type="secondary">{item.content}</Typography.Text>,
+                     }]}
+                  />
+             );
+        } else if (item.type === 'interactive') {
+             currentNode = (
+                <InteractiveOptions 
+                   interactive={item.interactive}
+                   onSelect={(val) => onSend(val, item.interactive)}
+                />
+             );
+        } else if (item.type === 'text') {
+             currentNode = (
+                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    <Typography.Text>{item.content}</Typography.Text>
+                </div>
+             );
+        }
+
+        // 2. Logic to merge reasoning with next item
+        if (item.type === 'reasoning') {
+            // If it's the last item, we must render it. 
+            // Otherwise, store it and wait for next message item to merge.
+            if (idx !== msg.items.length - 1) {
+                pendingReasoningNode = currentNode;
+                return; // Skip rendering this iteration, wait for next
+            }
+        }
+
+        if (currentNode) {
+             const contentStack = [];
+             
+             // If we have a pending reasoning node, prepend it
+             if (pendingReasoningNode) {
+                 contentStack.push(
+                     <div key={`reasoning-prev-${idx}`} style={{ marginBottom: 8 }}>
+                         {pendingReasoningNode}
+                     </div>
+                 );
+                 pendingReasoningNode = null;
+             }
+             
+             contentStack.push(currentNode);
+
+             const footerNodes = [];
+             // Attach footer/quotes to the LAST item of the message group
+             if (idx === msg.items.length - 1) {
+                  if (msg.totalQuoteList && msg.totalQuoteList.length > 0) {
+                      footerNodes.push(
+                          <div key="quotes" style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #eee' }}>
+                              <Typography.Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>
+                                  参考资料
+                              </Typography.Text>
+                              <ReferenceList quotes={msg.totalQuoteList} />
+                          </div>
+                      );
+                  }
+                  if (msg.durationSeconds || (msg.totalQuoteList && msg.totalQuoteList.length > 0)) {
+                      footerNodes.push(
+                          <div key="footer" style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 12, color: '#999' }}>
+                             {msg.totalQuoteList?.length > 0 && (
+                                 <Space size={4}>
+                                    <ReadOutlined />
+                                    <span>{msg.totalQuoteList.length} 引用</span>
+                                 </Space>
+                             )}
+                             {msg.durationSeconds && (
+                                 <Space size={4}>
+                                    <ClockCircleOutlined />
+                                    <span>{msg.durationSeconds}s</span>
+                                 </Space>
+                             )}
+                          </div>
+                      );
+                  }
+             }
+
+             bubbles.push({
+                 key: `${msg.key}-${idx}`,
+                 placement: msg.role === 'user' ? 'end' : 'start',
+                 content: (
+                     <div style={{ display: 'flex', flexDirection: 'column' }}>
+                         {contentStack}
+                         {footerNodes}
+                     </div>
+                 ),
+                 avatar: (
+                    <Avatar 
+                      icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />} 
+                      style={{ backgroundColor: msg.role === 'user' ? token.colorPrimary : token.colorFillSecondary }} 
+                    />
+                 ),
+             });
+        }
+    });
+
+    // Fallback for empty parsed items but existing content (legacy)
+    if (bubbles.length === 0 && msg.content) {
+          bubbles.push({
+             key: msg.key,
+             placement: msg.role === 'user' ? 'end' : 'start',
+             content: <Typography.Text>{msg.content}</Typography.Text>,
+             avatar: (
+                <Avatar 
+                  icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />} 
+                  style={{ backgroundColor: msg.role === 'user' ? token.colorPrimary : token.colorFillSecondary }} 
+                />
+             ),
+          });
+    }
+
+    return bubbles;
+  });
+
+  const recommendedPrompts = [
+    { key: '1', icon: <EditOutlined />, label: '帮我润色这段文字' },
+    { key: '2', icon: <RobotOutlined />, label: '解释这个概念' },
+    { key: '3', icon: <UserOutlined />, label: '写一封邮件' },
+    { key: '4', icon: <PlusOutlined />, label: '制定学习计划' },
+  ];
+
+  const handlePromptClick = (info) => {
+     onSend(info.data.label);
+  };
+
+  const menuConfig = (item) => ({
+    items: [
+      {
+        label: '删除',
+        key: 'delete',
+        icon: <DeleteOutlined />,
+        danger: true,
+        onClick: () => handleDeleteHistory(item.key),
+      },
+    ],
+  });
+
   return (
-    <Layout style={{ height: '100vh', background: '#fff' }}>
-      <Sider 
-        width={300} 
-        theme="light" 
-        style={{ borderRight: `1px solid ${colorBorderSecondary}` }}
-      >
-        <div style={{ padding: 16, borderBottom: `1px solid ${colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Button type="text" icon={<LeftOutlined />} onClick={() => navigate('/subjects')}>返回</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleNewChat}>新对话</Button>
+    <XProvider theme={{ token: { colorPrimary: token.colorPrimary } }}>
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', overflow: 'hidden' }}>
+        {/* Sidebar */}
+        <div style={{ 
+          width: 280, 
+          borderRight: `1px solid ${token.colorBorderSecondary}`, 
+          display: 'flex', 
+          flexDirection: 'column',
+          background: token.colorBgLayout
+        }}>
+          <div style={{ padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, cursor: 'pointer' }} onClick={() => navigate('/subjects')}>
+                <LeftOutlined style={{ marginRight: 8 }} />
+                <Typography.Title level={5} style={{ margin: 0 }}>返回</Typography.Title>
+            </div>
+            <div 
+              onClick={handleNewChat}
+              style={{
+                background: token.colorBgContainer,
+                border: `1px solid ${token.colorBorder}`,
+                borderRadius: token.borderRadiusLG,
+                padding: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                marginBottom: 16,
+                boxShadow: token.boxShadowTertiary
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = token.colorPrimary}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = token.colorBorder}
+            >
+              <PlusOutlined style={{ color: token.colorPrimary, marginRight: 8 }} />
+              <span style={{ fontWeight: 500 }}>开始新对话</span>
+            </div>
+          </div>
+          
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <Conversations
+                items={conversationItems}
+                activeKey={activeChatId}
+                onActiveChange={setActiveChatId}
+                menu={menuConfig}
+                groupable
+            />
+          </div>
         </div>
-        <List
-            dataSource={histories}
-            loading={loading}
-            style={{ height: 'calc(100vh - 64px)', overflowY: 'auto' }}
-            renderItem={item => (
-                <List.Item 
-                    onClick={() => setActiveChatId(item.chatId)}
-                    className={activeChatId === item.chatId ? 'ant-list-item-active' : ''}
-                    style={{ 
-                        cursor: 'pointer', 
-                        padding: '12px 16px',
-                        background: activeChatId === item.chatId ? '#f0faff' : 'transparent',
-                        borderLeft: activeChatId === item.chatId ? '3px solid #1890ff' : '3px solid transparent'
-                    }}
-                    actions={[
-                        <DeleteOutlined onClick={(e) => handleDeleteHistory(e, item.chatId)} style={{ color: '#999' }} />
-                    ]}
-                >
-                    <div style={{ width: '100%', overflow: 'hidden' }}>
-                        <Text strong ellipsis>{item.title || '未命名会话'}</Text>
-                        <br/>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{new Date(item.updateTime || Date.now()).toLocaleDateString()}</Text>
-                    </div>
-                </List.Item>
+
+        {/* Main Content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', background: token.colorBgContainer }}>
+          {/* Header */}
+          <div style={{ 
+              padding: '16px 24px', 
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+          }}>
+             <Typography.Title level={4} style={{ margin: 0 }}>
+               {title || 'AI 助手'}
+             </Typography.Title>
+             <Space>
+               <ShareAltOutlined style={{ fontSize: 18, cursor: 'pointer', color: token.colorTextSecondary }} />
+             </Space>
+          </div>
+
+          {/* Messages Area */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+            {messages.length === 0 ? (
+               <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <Avatar size={64} icon={<RobotOutlined />} style={{ background: token.colorPrimary, marginBottom: 24 }} />
+                  <Typography.Title level={3}>你好！我是你的学术助手</Typography.Title>
+                  <Typography.Text type="secondary" style={{ marginBottom: 48 }}>我可以帮你解答问题、提供建议或协助你完成任务。</Typography.Text>
+                  
+                  <div style={{ width: '100%', maxWidth: 600 }}>
+                    <Prompts 
+                        title="你可以试着问我："
+                        items={recommendedPrompts} 
+                        onItemClick={handlePromptClick}
+                        styles={{
+                            item: {
+                                flex: '1 1 45%', // 2 columns
+                            }
+                        }}
+                    />
+                  </div>
+               </div>
+            ) : (
+                <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                   <Bubble.List items={bubbleItems} />
+                </div>
             )}
-        />
-      </Sider>
-      
-      <Layout>
-        <Header style={{ background: colorBgContainer, borderBottom: `1px solid ${colorBorderSecondary}`, padding: '0 24px' }}>
-             <Title level={4} style={{ margin: '14px 0' }}>{title || 'AI 助手'}</Title>
-        </Header>
-        <Content style={{ padding: 24, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ flex: 1, overflowY: 'auto', marginBottom: 24 }}>
-                {messages.length === 0 ? (
-                    <Empty description="开始一个新的对话" />
-                ) : (
-                    messages.map(msg => (
-                        <Bubble
-                            key={msg.key}
-                            placement={msg.role === 'user' ? 'end' : 'start'}
-                            content={msg.content}
-                            avatar={<Avatar icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />} />}
-                            loading={msg.role === 'ai' && !msg.content && sending}
-                        />
-                    ))
-                )}
-            </div>
-            <div style={{ maxWidth: 800, margin: '0 auto', width: '100%' }}>
-                 <Sender 
-                    value={inputValue}
-                    onChange={setInputValue}
-                    onSubmit={onSend}
-                    loading={sending}
-                    placeholder="输入您的问题..."
-                 />
-            </div>
-        </Content>
-      </Layout>
-    </Layout>
+          </div>
+
+          {/* Input Area */}
+          {!isPendingInteractive && (
+              <div style={{ padding: '24px', paddingTop: 0 }}>
+                 <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                     <Sender 
+                        value={inputValue}
+                        onChange={setInputValue}
+                        onSubmit={onSend}
+                        loading={sending}
+                        placeholder="输入您的问题，Shift + Enter 换行"
+                     />
+                     <Typography.Text type="secondary" style={{ fontSize: 12, textAlign: 'center', display: 'block', marginTop: 8 }}>
+                        内容由 AI 生成，请仔细甄别
+                     </Typography.Text>
+                 </div>
+              </div>
+          )}
+        </div>
+      </div>
+    </XProvider>
   );
 };
 

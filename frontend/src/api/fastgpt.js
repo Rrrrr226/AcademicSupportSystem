@@ -34,8 +34,8 @@ export const deleteApp = (token, id) => {
 export const chatCompletion = async (data) => {
     const token = localStorage.getItem('token');
     if (data.stream) {
-        // Return fetch promise for streaming
-        return fetch(`${BASE_URL}/fastgpt/v1/chat/completions`, {
+        // Return fetch promise for streaming - use stream endpoint
+        return fetch(`${BASE_URL}/fastgpt/v1/chat/completions/stream`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
