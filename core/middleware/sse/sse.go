@@ -60,35 +60,83 @@ func newOptions(opts []Options) Options {
 }
 
 func (c *connection) handle(log *log.Logger, ctx flamego.Context) {
+	// 捕获可能的 panic，防止连接断开后写入导致崩溃
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("sse: recovered from panic: %v", r)
+		}
+	}()
+
 	w := ctx.ResponseWriter()
 	ticker := time.NewTicker(c.PingInterval)
-	defer func() { ticker.Stop() }()
+	defer ticker.Stop()
 
-	write := func(msg string) {
+	// closed 用于标记连接是否已关闭
+	closed := false
+
+	write := func(msg string) bool {
+		if closed {
+			return false
+		}
+		// 检查 context 是否已取消
+		select {
+		case <-ctx.Request().Context().Done():
+			closed = true
+			return false
+		default:
+		}
 		_, err := w.Write([]byte(msg))
 		if err != nil {
 			log.Printf("sse: failed to write message: %v", err)
+			closed = true
+			return false
 		}
+		return true
 	}
 
-	write(": ping\n\n")
-	write("events: stream opened\n\n")
-	w.Flush()
+	flush := func() bool {
+		if closed {
+			return false
+		}
+		// 检查 context 是否已取消
+		select {
+		case <-ctx.Request().Context().Done():
+			closed = true
+			return false
+		default:
+		}
+		w.Flush()
+		return true
+	}
+
+	if !write(": ping\n\n") {
+		return
+	}
+	if !write("events: stream opened\n\n") {
+		return
+	}
+	if !flush() {
+		return
+	}
 
 	const (
 		senderSend = iota
 		tickerTick
 		timeout
-		closed
+		ctxClosed
 	)
 	cases := make([]reflect.SelectCase, 4)
 	cases[senderSend] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: c.sender, Send: reflect.ValueOf(nil)}
 	cases[tickerTick] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ticker.C), Send: reflect.ValueOf(nil)}
 	cases[timeout] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(time.After(time.Hour)), Send: reflect.ValueOf(nil)}
-	cases[closed] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Request().Context().Done()), Send: reflect.ValueOf(nil)}
+	cases[ctxClosed] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Request().Context().Done()), Send: reflect.ValueOf(nil)}
 
 loop:
 	for {
+		if closed {
+			break loop
+		}
+
 		chosen, message, ok := reflect.Select(cases)
 		switch chosen {
 		case senderSend:
@@ -97,32 +145,45 @@ loop:
 				return
 			}
 
-			write("data: ")
+			if !write("data: ") {
+				return
+			}
 			evt, err := json.Marshal(message.Interface())
 			if err != nil {
 				log.Printf("sse: failed to marshal message: %v", err)
 				continue
 			}
-			write(string(evt))
-			write("\n\n")
-			w.Flush()
+			if !write(string(evt)) {
+				return
+			}
+			if !write("\n\n") {
+				return
+			}
+			if !flush() {
+				return
+			}
 
 		case tickerTick:
-			write(": ping\n\n")
-			w.Flush()
+			if !write(": ping\n\n") {
+				return
+			}
+			if !flush() {
+				return
+			}
 
 		case timeout:
 			write("events: stream timeout\n\n")
-			w.Flush()
+			flush()
 			break loop
 
-		case closed:
+		case ctxClosed:
+			// 客户端已断开连接
 			return
 		}
 	}
 
 	write("events: error\ndata: eof\n\n")
-	w.Flush()
+	flush()
 	write("events: stream closed")
-	w.Flush()
+	flush()
 }
