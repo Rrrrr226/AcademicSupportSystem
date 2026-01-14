@@ -376,7 +376,8 @@ const Chat = () => {
 
   // Check if last message is interactive and pending
   const lastMsg = messages[messages.length - 1];
-  const isPendingInteractive = lastMsg?.role === 'ai' && lastMsg?.interactive && !lastMsg.interactive.params.userSelectedVal;
+  const lastMsgLastItem = lastMsg?.items?.[lastMsg.items.length - 1];
+  const isPendingInteractive = lastMsg?.role === 'ai' && lastMsgLastItem?.type === 'interactive' && !lastMsgLastItem.interactive?.params?.userSelectedVal;
 
   const onSend = async (val, interactiveParams = null) => {
     const text = typeof val === 'string' ? val : '';
@@ -386,10 +387,25 @@ const Chat = () => {
     if (interactiveParams) {
         setMessages(prev => {
             const newArr = [...prev];
-            const last = newArr[newArr.length - 1];
-            if (last && last.interactive) {
-                // Update local state to show selected
-                last.interactive.params.userSelectedVal = text;
+            const last = { ...newArr[newArr.length - 1] }; // Shallow copy msg
+            if (last && last.items && last.items.length > 0) {
+                // Find and update the interactive item
+                const newItems = [...last.items];
+                const lastItemIndex = newItems.length - 1;
+                const lastItem = { ...newItems[lastItemIndex] };
+                
+                if (lastItem.type === 'interactive' && lastItem.interactive) {
+                    lastItem.interactive = {
+                        ...lastItem.interactive,
+                        params: {
+                            ...lastItem.interactive.params,
+                            userSelectedVal: text
+                        }
+                    };
+                    newItems[lastItemIndex] = lastItem;
+                    last.items = newItems;
+                    newArr[newArr.length - 1] = last;
+                }
             }
             return newArr;
         });
@@ -477,10 +493,21 @@ const Chat = () => {
         const lines = chunk.split('\n');
         for (const line of lines) {
             if (line.startsWith('data: ')) {
-                const jsonStr = line.slice(6);
+                const jsonStr = line.slice(6).trim();
                 if (jsonStr === '[DONE]') continue;
                 try {
-                    const data = JSON.parse(jsonStr);
+                    let data = JSON.parse(jsonStr);
+                    
+                    // Handle double-encoded data property if present (FastGPT specific wrapper)
+                    if (data && data.data && typeof data.data === 'string') {
+                         if (data.data === '[DONE]') continue;
+                         try {
+                             data = JSON.parse(data.data);
+                         } catch (innerE) {
+                             // console.warn('Failed to parse inner data JSON', innerE);
+                         }
+                    }
+
                     const content = data.choices?.[0]?.delta?.content || '';
                     // Note: Handle specialized chunks (ref, reasoning) here if FastGPT streams them separately.
                     // For now assuming stream is just text content.
@@ -578,11 +605,13 @@ const Chat = () => {
                 />
              );
         } else if (item.type === 'text') {
-             currentNode = (
-                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    <Typography.Text>{item.content}</Typography.Text>
-                </div>
-             );
+             if (item.content) {
+                 currentNode = (
+                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        <Typography.Text>{item.content}</Typography.Text>
+                    </div>
+                 );
+             }
         }
 
         // 2. Logic to merge reasoning with next item
@@ -595,7 +624,7 @@ const Chat = () => {
             }
         }
 
-        if (currentNode) {
+        if (currentNode || (pendingReasoningNode && idx === msg.items.length - 1)) {
              const contentStack = [];
              
              // If we have a pending reasoning node, prepend it
@@ -608,9 +637,13 @@ const Chat = () => {
                  pendingReasoningNode = null;
              }
              
-             contentStack.push(currentNode);
+             if (currentNode) {
+                 contentStack.push(currentNode);
+             }
 
              const footerNodes = [];
+             let footerElement = null;
+
              // Attach footer/quotes to the LAST item of the message group
              if (idx === msg.items.length - 1) {
                   if (msg.totalQuoteList && msg.totalQuoteList.length > 0) {
@@ -623,9 +656,10 @@ const Chat = () => {
                           </div>
                       );
                   }
+                  
                   if (msg.durationSeconds || (msg.totalQuoteList && msg.totalQuoteList.length > 0)) {
-                      footerNodes.push(
-                          <div key="footer" style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 12, color: '#999' }}>
+                      footerElement = (
+                          <div style={{ marginTop: 4, display: 'flex', gap: 16, fontSize: 12, color: '#999', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                              {msg.totalQuoteList?.length > 0 && (
                                  <Space size={4}>
                                     <ReadOutlined />
@@ -652,6 +686,7 @@ const Chat = () => {
                          {footerNodes}
                      </div>
                  ),
+                 footer: footerElement,
                  avatar: (
                     <Avatar 
                       icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />} 
