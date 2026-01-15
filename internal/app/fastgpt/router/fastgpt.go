@@ -31,6 +31,7 @@ func AppFastgptInit(e *flamego.Flame) {
 			e.Delete("/history/delHistory", handler.HandleDelHistory)
 			e.Post("/getPaginationRecords", binding.JSON(dto.GetPaginationRecordsRequest{}), handler.HandleGetPaginationRecords)
 			e.Post("/quote/getCollectionQuote", binding.JSON(dto.GetCollectionQuoteRequest{}), handler.HandleGetCollectionQuote)
+			e.Get("/outLink/init", handler.HandleOutLinkInit)
 		})
 
 		// Dataset 接口

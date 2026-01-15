@@ -78,3 +78,11 @@ export const delHistory = (appId, chatId) => {
         headers: getAuthHeader(token)
     });
 };
+
+export const initOutLinkChat = (chatId, shareId, outLinkUid) => {
+    const token = localStorage.getItem('token');
+    return axios.get(`${BASE_URL}/fastgpt/core/chat/outLink/init`, {
+        params: { chatId, shareId, outLinkUid },
+        headers: getAuthHeader(token)
+    });
+};

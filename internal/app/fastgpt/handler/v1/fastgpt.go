@@ -2,6 +2,7 @@ package v1
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -137,6 +138,8 @@ func sendSSEMessage(msg chan<- *dto.SSEMessage, message *dto.SSEMessage) (sent b
 
 // HandleStreamChatCompletion 处理流式聊天补全请求（使用 flamego/sse）
 func HandleStreamChatCompletion(c flamego.Context, req dto.ChatCompletionRequest, errs binding.Errors, authInfo auth.Info, msg chan<- *dto.SSEMessage) {
+	fmt.Println("========== 开始发送消息 ==========")
+
 	if errs != nil {
 		sendSSEMessage(msg, &dto.SSEMessage{Data: `{"error":"参数错误"}`, Event: "error"})
 		return
@@ -181,13 +184,16 @@ func HandleStreamChatCompletion(c flamego.Context, req dto.ChatCompletionRequest
 		// 解析 SSE 格式数据
 		if strings.HasPrefix(line, "data: ") {
 			data := strings.TrimPrefix(line, "data: ")
+			fmt.Printf("[SSE发送] %s\n", data)
 			if !sendSSEMessage(msg, &dto.SSEMessage{Data: data}) {
 				// 客户端已断开连接
+				fmt.Println("[SSE发送] 客户端已断开连接")
 				return
 			}
 
 			// 检查是否是结束标记
 			if data == "[DONE]" {
+				fmt.Println("========== 消息发送完成 ==========")
 				break
 			}
 		}
@@ -578,6 +584,55 @@ func HandleSearchTest(c flamego.Context, r flamego.Render, req dto.SearchTestReq
 	}
 
 	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequest("POST", "/core/dataset/searchTest", req)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.ServiceErr(r, err)
+		return
+	}
+
+	if statusCode != http.StatusOK {
+		logx.SystemLogger.CtxError(c.Request().Context(), "FastGPT API error: status=%d, body=%s", statusCode, string(respBody))
+		response.HTTPFail(r, 500001, "FastGPT API 调用失败")
+		return
+	}
+
+	c.ResponseWriter().Header().Set("Content-Type", "application/json")
+	c.ResponseWriter().WriteHeader(http.StatusOK)
+	c.ResponseWriter().Write(respBody)
+}
+
+// HandleOutLinkInit 外链聊天初始化
+// 路由: GET /fastgpt/core/chat/outLink/init?chatId=xxx&shareId=xxx&outLinkUid=xxx
+func HandleOutLinkInit(c flamego.Context, r flamego.Render, authInfo auth.Info) {
+	chatId := c.Query("chatId")
+	shareId := c.Query("shareId")
+	outLinkUid := c.Query("outLinkUid")
+
+	if shareId == "" {
+		response.HTTPFail(r, 400001, "缺少必要参数 shareId")
+		return
+	}
+
+	// 根据 shareId 获取对应的 API Key
+	app, err := dao.FastgptApp.GetAppByShareID(shareId)
+	if err != nil {
+		logx.SystemLogger.CtxError(c.Request().Context(), err)
+		response.HTTPFail(r, 400013, "应用不存在或已禁用")
+		return
+	}
+
+	// 构建查询参数
+	queryParams := map[string]string{
+		"shareId": shareId,
+	}
+	if chatId != "" {
+		queryParams["chatId"] = chatId
+	}
+	if outLinkUid != "" {
+		queryParams["outLinkUid"] = outLinkUid
+	}
+
+	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequestWithQuery("GET", "/core/chat/outLink/init", queryParams)
 	if err != nil {
 		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)

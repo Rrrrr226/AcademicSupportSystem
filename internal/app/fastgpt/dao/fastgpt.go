@@ -38,6 +38,19 @@ func (u *fastgpt) GetAppByID(appID string) (*model.FastgptApp, error) {
 	return &app, nil
 }
 
+// GetAppByShareID 根据 ShareID 获取应用
+func (u *fastgpt) GetAppByShareID(shareID string) (*model.FastgptApp, error) {
+	var app model.FastgptApp
+	err := u.Where("share_id = ?", shareID).First(&app).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("应用不存在或已禁用")
+		}
+		return nil, err
+	}
+	return &app, nil
+}
+
 // GetAppByPrimaryID 根据主键ID获取应用
 func (u *fastgpt) GetAppByPrimaryID(ctx context.Context, id string) (*model.FastgptApp, error) {
 	var app model.FastgptApp

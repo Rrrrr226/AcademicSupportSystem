@@ -192,3 +192,10 @@ type GetCollectionQuoteRequest struct {
 	ShareId        string `json:"shareId"`
 	OutLinkUid     string `json:"outLinkUid"`
 }
+
+// OutLinkInitRequest 外链聊天初始化请求
+type OutLinkInitRequest struct {
+	ChatId     string `form:"chatId"`
+	ShareId    string `form:"shareId" binding:"Required"`
+	OutLinkUid string `form:"outLinkUid"`
+}

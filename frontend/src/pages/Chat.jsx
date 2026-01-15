@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -28,7 +28,7 @@ import {
   XProvider,
   Think,
 } from '@ant-design/x';
-import { chatCompletion, getHistories, getPaginationRecords, delHistory } from '../api/fastgpt';
+import { chatCompletion, getHistories, getPaginationRecords, delHistory, initOutLinkChat } from '../api/fastgpt';
 import { BASE_URL } from '../api/config';
 
 // 解析 value 数组，返回结构化的内容列表
@@ -274,6 +274,164 @@ const InteractiveOptions = ({ interactive, onSelect }) => {
 };
 
 
+// 打字机效果的 Markdown 渲染组件
+const TypingMarkdown = ({ content, isTyping, style = {} }) => {
+  const [displayedContent, setDisplayedContent] = useState(isTyping ? '' : content);
+  const [showCursor, setShowCursor] = useState(true);
+  const contentRef = useRef(content);
+
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  // Cursor blinking
+  useEffect(() => {
+     if (!isTyping) return;
+     const cursorInterval = setInterval(() => {
+        setShowCursor(prev => !prev);
+     }, 500);
+     return () => clearInterval(cursorInterval);
+  }, [isTyping]);
+
+  // Typing logic
+  useEffect(() => {
+    if (!isTyping) {
+        setDisplayedContent(content);
+        return;
+    }
+
+    const interval = setInterval(() => {
+        setDisplayedContent((prev) => {
+             const fullContent = contentRef.current;
+             if (prev.length < fullContent.length) {
+                 const diff = fullContent.length - prev.length;
+                 // 动态调整打字速度，防止落后太多
+                 // 调整为更慢的速度：基础间隔 50ms，并不容易触发加速
+                 const step = diff > 200 ? 3 : (diff > 100 ? 2 : 1);
+                 return fullContent.slice(0, prev.length + step);
+             }
+             return prev;
+        });
+    }, 50);
+    
+    return () => clearInterval(interval);
+  }, [isTyping]);
+
+  // 当 typing 状态结束时，确保显示完整内容
+  useEffect(() => {
+      if(!isTyping) {
+          setDisplayedContent(content);
+      }
+  }, [isTyping, content]);
+
+  return (
+    <div className="markdown-body" style={{ whiteSpace: 'normal', wordBreak: 'break-word', fontSize: 14, ...style }}>
+       <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+              img: ({node, ...props}) => {
+                 let src = props.src;
+                 if (src && src.startsWith('/api')) {
+                     src = `${BASE_URL}${src}`;
+                 }
+                 return (
+                    <Image 
+                      {...props} 
+                      src={src} 
+                      style={{ maxWidth: '100%', borderRadius: 8, margin: '8px 0', objectFit: 'contain' }} 
+                    />
+                 );
+              },
+              p: ({node, ...props}) => <Typography.Paragraph {...props} style={{ marginBottom: '0.5em', fontSize: 'inherit' }} />,
+              h1: ({node, ...props}) => <Typography.Title level={3} {...props} style={{ fontSize: '1.4em', marginTop: '0.5em' }} />,
+              h2: ({node, ...props}) => <Typography.Title level={4} {...props} style={{ fontSize: '1.2em', marginTop: '0.5em' }} />,
+              h3: ({node, ...props}) => <Typography.Title level={5} {...props} style={{ fontSize: '1.1em', marginTop: '0.5em' }} />,
+              ul: ({node, ...props}) => <ul {...props} style={{ paddingLeft: 20, marginBottom: '0.5em' }} />,
+              ol: ({node, ...props}) => <ol {...props} style={{ paddingLeft: 20, marginBottom: '0.5em' }} />,
+              li: ({node, ...props}) => <li {...props} style={{ marginBottom: 4 }} />,
+              code: ({node, inline, className, children, ...props}) => {
+                  const match = /language-(\w+)/.exec(className || '');
+                  return !inline ? (
+                    <pre style={{ background: '#f5f5f5', padding: '12px', borderRadius: 6, overflowX: 'auto', marginBottom: 8, border: '1px solid #f0f0f0' }}>
+                       <code className={className} {...props}>
+                          {children}
+                       </code>
+                    </pre>
+                  ) : (
+                    <code style={{ background: '#f5f5f5', padding: '2px 4px', borderRadius: 4, color: '#eb5757', border: '1px solid #f0f0f0' }} {...props}>
+                        {children}
+                    </code>
+                  );
+              }
+          }}
+       >
+           {displayedContent}
+       </ReactMarkdown>
+       {isTyping && (
+           <span style={{
+              display: 'inline-block',
+              width: 3,
+              height: 16,
+              background: '#1677ff',
+              marginLeft: 4,
+              verticalAlign: 'text-bottom',
+              opacity: showCursor ? 1 : 0,
+              transition: 'opacity 0.2s',
+              borderRadius: 1
+           }} />
+       )}
+    </div>
+  );
+};
+
+// 思考过程组件
+const ThinkingProcess = ({ content, isTyping, duration }) => {
+  const [activeKey, setActiveKey] = useState(isTyping ? ['1'] : []);
+
+  useEffect(() => {
+     if (isTyping) {
+         setActiveKey(['1']);
+     } else {
+         setActiveKey([]);
+     }
+  }, [isTyping]);
+
+  return (
+    <div style={{ 
+       backgroundColor: '#fff', 
+       borderRadius: 6,
+       marginBottom: 10,
+       border: '1px solid rgba(0,0,0,0.08)',
+       overflow: 'hidden'
+    }}>
+      <Collapse
+         ghost
+         activeKey={activeKey}
+         onChange={(keys) => setActiveKey(keys)}
+         expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} style={{ fontSize: 12, color: 'rgba(0,0,0,0.25)' }}/>}
+         items={[{
+            key: '1',
+            label: (
+               <Space size={8}>
+                  <Typography.Text style={{ fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>思考过程</Typography.Text>
+                  {duration && <Tag style={{ margin: 0, fontSize: 10, lineHeight: '16px', border: 0, background: 'rgba(0,0,0,0.06)' }}>{duration}s</Tag>}
+               </Space>
+            ),
+            children: (
+                <div style={{ padding: '0 4px 8px 12px' }}>
+                    <TypingMarkdown 
+                        content={content || ''} 
+                        isTyping={isTyping} 
+                        style={{ color: 'rgba(0, 0, 0, 0.45)', fontSize: 13 }} 
+                    />
+                </div>
+            ),
+         }]}
+      />
+    </div>
+  );
+};
+
 const Chat = () => {
   const { token } = theme.useToken();
   const location = useLocation();
@@ -286,6 +444,16 @@ const Chat = () => {
   const [messages, setMessages] = useState([]);
   const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const messagesEndRef = useRef(null);
+  const ignoreLoadRef = useRef(null); // 用于标记跳过下一次 loadMessages 的 chatId
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   // Initial Load
   useEffect(() => {
@@ -295,11 +463,17 @@ const Chat = () => {
       return;
     }
     loadHistories();
+    handleNewChat();
   }, [id, navigate]);
 
   // Load messages when activeChatId changes
   useEffect(() => {
     if (activeChatId) {
+      // 如果是被标记忽略的 chatId（通常是因为刚初始化且手动设置了欢迎语），则跳过本次加载
+      if (ignoreLoadRef.current === activeChatId) {
+          ignoreLoadRef.current = null;
+          return;
+      }
       loadMessages(activeChatId);
     } else {
       setMessages([]);
@@ -356,9 +530,44 @@ const Chat = () => {
     }
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     setActiveChatId(null);
     setMessages([]);
+    
+    // 初始化新对话（如果需要立即创建后端记录的话）
+    // 通常这里只生成ID，等到发送第一条消息时后端会自动处理，
+    // 但如果有特殊初始化接口，可以在这里调用或者在发送前调用。
+    // 按需求：点击新对话时调用接口
+    if (shareId && outLinkUid) {
+        const newChatId = Math.random().toString(36).substring(2, 15);
+        try {
+            const res = await initOutLinkChat(newChatId, shareId, outLinkUid);
+            const data = res.data?.data;
+            
+            // 使用后端确认或返回的 chatId
+            const finalChatId = data?.chatId || newChatId;
+            
+            // 如果后端返回了欢迎语，可以添加一条 AI 消息
+            // 并且标记该 chatId 跳过下一次自动加载，防止被空的后端历史记录覆盖
+            if (data?.app?.chatConfig?.welcomeText) {
+                 ignoreLoadRef.current = finalChatId;
+                 setMessages([{
+                     key: Date.now().toString(),
+                     role: 'ai',
+                     items: [{ type: 'text', content: data.app.chatConfig.welcomeText }],
+                     totalQuoteList: []
+                 }]);
+            }
+
+            setActiveChatId(finalChatId);
+
+            // 刷新历史记录以显示新会话
+            loadHistories();
+        } catch (err) {
+            console.error('Failed to init chat', err);
+            message.error('初始化新对话失败');
+        }
+    }
   };
 
   const handleDeleteHistory = async (chatId) => {
@@ -422,7 +631,16 @@ const Chat = () => {
         totalQuoteList: [],
         content: currentInput // legacy support for sending logic
     };
-    setMessages(prev => [...prev, newMsg]);
+
+    const aiMsgKey = (Date.now() + 1).toString();
+    const newAiMsg = { 
+        key: aiMsgKey, 
+        role: 'ai', 
+        items: [{ type: 'text', content: '' }], 
+        totalQuoteList: [] 
+    };
+
+    setMessages(prev => [...prev, newMsg, newAiMsg]);
 
     const targetChatId = activeChatId || Date.now().toString(); 
     if (!activeChatId) {
@@ -473,62 +691,93 @@ const Chat = () => {
         messages: requestMessages
       });
 
-      const aiMsgKey = (Date.now() + 1).toString();
-      // Initialize with empty items
-      setMessages(prev => [...prev, { 
-          key: aiMsgKey, 
-          role: 'ai', 
-          items: [{ type: 'text', content: '' }], 
-          totalQuoteList: [] 
-      }]);
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let aiContent = '';
+      let aiReasoning = '';
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                const jsonStr = line.slice(6).trim();
-                if (jsonStr === '[DONE]') continue;
-                try {
-                    let data = JSON.parse(jsonStr);
-                    
-                    // Handle double-encoded data property if present (FastGPT specific wrapper)
-                    if (data && data.data && typeof data.data === 'string') {
-                         if (data.data === '[DONE]') continue;
-                         try {
-                             data = JSON.parse(data.data);
-                         } catch (innerE) {
-                             // console.warn('Failed to parse inner data JSON', innerE);
-                         }
-                    }
+        
+        if (value) {
+            buffer += decoder.decode(value, { stream: true });
+        }
+        
+        let shouldBreak = done;
+        
+        const lines = buffer.split('\n');
+        // Keep the last part in the buffer as it might be incomplete if not done
+        if (!shouldBreak) {
+            buffer = lines.pop(); 
+        } else {
+            buffer = ''; // Process all if done
+        }
 
-                    const content = data.choices?.[0]?.delta?.content || '';
-                    // Note: Handle specialized chunks (ref, reasoning) here if FastGPT streams them separately.
-                    // For now assuming stream is just text content.
-                    if (content) {
-                        aiContent += content;
-                        setMessages(prev => prev.map(m => 
-                            m.key === aiMsgKey ? { 
-                                ...m, 
-                                items: [{ type: 'text', content: aiContent }] 
-                            } : m
-                        ));
-                    }
-                } catch (e) {
+        let chunkContent = '';
+        let chunkReasoning = '';
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine.startsWith('data: ')) continue;
+
+            const jsonStr = trimmedLine.slice(6).trim();
+            if (jsonStr === '[DONE]') continue;
+            
+            try {
+                let data = JSON.parse(jsonStr);
+                
+                // Handle double-encoded data property if present (FastGPT specific wrapper)
+                if (data && data.data && typeof data.data === 'string') {
+                        if (data.data === '[DONE]') continue;
+                        try {
+                            data = JSON.parse(data.data);
+                        } catch (innerE) {
+                            // console.warn('Failed to parse inner data JSON', innerE);
+                        }
                 }
+
+                const content = data.choices?.[0]?.delta?.content || '';
+                const reasoning = data.choices?.[0]?.delta?.reasoning_content || '';
+
+                if (content) chunkContent += content;
+                if (reasoning) chunkReasoning += reasoning;
+
+            } catch (e) {
+                console.error('Error parsing stream message', e);
             }
         }
+
+        if (chunkContent || chunkReasoning) {
+            aiContent += chunkContent;
+            aiReasoning += chunkReasoning;
+            
+            setMessages(prev => prev.map(m => {
+                if (m.key === aiMsgKey) {
+                    const newItems = [];
+                    if (aiReasoning) {
+                        newItems.push({ type: 'reasoning', content: aiReasoning });
+                    }
+                    if (aiContent || (!aiReasoning && !aiContent)) {
+                        newItems.push({ type: 'text', content: aiContent });
+                    }
+                    // If we have content but no reasoning ever, we already covered cases.
+                    // If initial empty state, handled above.
+                    
+                    return { ...m, items: newItems };
+                } 
+                return m;
+            }));
+        }
+
+        if (shouldBreak) break;
       }
-      
-      if (!histories.find(h => h.chatId === targetChatId)) {
-        loadHistories();
-      }
+
+      // 延迟刷新以确保后端数据一致性
+      setTimeout(() => {
+          loadMessages(targetChatId); // 刷新当前消息记录
+          loadHistories(); // 刷新会话列表（标题等）
+      }, 1000);
 
     } catch (err) {
       console.error(err);
@@ -562,7 +811,7 @@ const Chat = () => {
   }));
 
   // 转换消息为 Bubble 需要的格式
-  const bubbleItems = messages.flatMap(msg => {
+  const bubbleItems = messages.flatMap((msg, msgIndex) => {
     // If loading
     if(msg.role === 'ai' && msg.items.length === 0 && !msg.content && sending) {
         return [{
@@ -581,21 +830,17 @@ const Chat = () => {
 
         // 1. Build the node for current item
         if (item.type === 'reasoning') {
+            const isTyping = msg.role === 'ai' && 
+                             sending && 
+                             msgIndex === messages.length - 1 && 
+                             idx === msg.items.length - 1;
+            
              currentNode = (
-                  <Collapse
-                     ghost
-                     expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
-                     items={[{
-                        key: '1',
-                        label: (
-                           <Space>
-                              <Typography.Text type="secondary">思考过程</Typography.Text>
-                              {item.duration && <Tag>{item.duration}s</Tag>}
-                           </Space>
-                        ),
-                        children: <Typography.Text type="secondary">{item.content}</Typography.Text>,
-                     }]}
-                  />
+                <ThinkingProcess 
+                   content={item.content} 
+                   isTyping={isTyping} 
+                   duration={item.duration} 
+                />
              );
         } else if (item.type === 'interactive') {
              currentNode = (
@@ -605,11 +850,14 @@ const Chat = () => {
                 />
              );
         } else if (item.type === 'text') {
-             if (item.content) {
+             const isTyping = msg.role === 'ai' && 
+                              sending && 
+                              msgIndex === messages.length - 1 && 
+                              idx === msg.items.length - 1;
+
+             if (item.content || isTyping) {
                  currentNode = (
-                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        <Typography.Text>{item.content}</Typography.Text>
-                    </div>
+                    <TypingMarkdown content={item.content || ''} isTyping={isTyping} />
                  );
              }
         }
@@ -715,17 +963,6 @@ const Chat = () => {
     return bubbles;
   });
 
-  const recommendedPrompts = [
-    { key: '1', icon: <EditOutlined />, label: '帮我润色这段文字' },
-    { key: '2', icon: <RobotOutlined />, label: '解释这个概念' },
-    { key: '3', icon: <UserOutlined />, label: '写一封邮件' },
-    { key: '4', icon: <PlusOutlined />, label: '制定学习计划' },
-  ];
-
-  const handlePromptClick = (info) => {
-     onSend(info.data.label);
-  };
-
   const menuConfig = (item) => ({
     items: [
       {
@@ -808,30 +1045,10 @@ const Chat = () => {
 
           {/* Messages Area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-            {messages.length === 0 ? (
-               <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <Avatar size={64} icon={<RobotOutlined />} style={{ background: token.colorPrimary, marginBottom: 24 }} />
-                  <Typography.Title level={3}>你好！我是你的学术助手</Typography.Title>
-                  <Typography.Text type="secondary" style={{ marginBottom: 48 }}>我可以帮你解答问题、提供建议或协助你完成任务。</Typography.Text>
-                  
-                  <div style={{ width: '100%', maxWidth: 600 }}>
-                    <Prompts 
-                        title="你可以试着问我："
-                        items={recommendedPrompts} 
-                        onItemClick={handlePromptClick}
-                        styles={{
-                            item: {
-                                flex: '1 1 45%', // 2 columns
-                            }
-                        }}
-                    />
-                  </div>
-               </div>
-            ) : (
-                <div style={{ maxWidth: 800, margin: '0 auto' }}>
-                   <Bubble.List items={bubbleItems} />
-                </div>
-            )}
+            <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                <Bubble.List items={bubbleItems} />
+                <div ref={messagesEndRef} />
+            </div>
           </div>
 
           {/* Input Area */}
