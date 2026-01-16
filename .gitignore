@@ -11,4 +11,5 @@ frontend/build
 *.xlsx
 frontend/package-lock.json
 .claude
-.shared
+.shared/ui-ux-pro-max/*
+.github
