@@ -71,10 +71,10 @@ export const updateHistory = (data) => {
     });
 };
 
-export const delHistory = (appId, chatId) => {
+export const delHistory = (appId, chatId, shareId, outLinkUid) => {
     const token = localStorage.getItem('token');
-    return axios.delete(`${BASE_URL}/fastgpt/core/chat/history/delHistory`, {
-        params: { appId, chatId },
+    return axios.delete(`${BASE_URL}/api/core/chat/delHistory`, {
+        params: { FastgptAppId: appId, chatId, shareId, outLinkUid },
         headers: getAuthHeader(token)
     });
 };

@@ -266,44 +266,6 @@ func HandleUpdateHistory(c flamego.Context, r flamego.Render, req dto.UpdateHist
 	c.ResponseWriter().Write(respBody)
 }
 
-// HandleDelHistory 删除聊天会话
-func HandleDelHistory(c flamego.Context, r flamego.Render, authInfo auth.Info) {
-	appId := c.Query("appId")
-	chatId := c.Query("chatId")
-
-	if appId == "" || chatId == "" {
-		response.HTTPFail(r, 400001, "缺少必要参数")
-		return
-	}
-
-	app, err := dao.FastgptApp.GetAppByID(appId)
-	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		response.ServiceErr(r, err)
-		return
-	}
-
-	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequestWithQuery("DELETE", "/core/chat/history/delHistory", map[string]string{
-		"appId":  appId,
-		"chatId": chatId,
-	})
-	if err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
-		response.ServiceErr(r, err)
-		return
-	}
-
-	if statusCode != http.StatusOK {
-		logx.SystemLogger.CtxError(c.Request().Context(), "FastGPT API error: status=%d, body=%s", statusCode, string(respBody))
-		response.HTTPFail(r, 500001, "FastGPT API 调用失败")
-		return
-	}
-
-	c.ResponseWriter().Header().Set("Content-Type", "application/json")
-	c.ResponseWriter().WriteHeader(http.StatusOK)
-	c.ResponseWriter().Write(respBody)
-}
-
 // HandleGetPaginationRecords 获取聊天记录
 func HandleGetPaginationRecords(c flamego.Context, r flamego.Render, req dto.GetPaginationRecordsRequest, errs binding.Errors, authInfo auth.Info) {
 	if errs != nil {
@@ -641,6 +603,52 @@ func HandleOutLinkInit(c flamego.Context, r flamego.Render, authInfo auth.Info) 
 
 	if statusCode != http.StatusOK {
 		logx.SystemLogger.CtxError(c.Request().Context(), "FastGPT API error: status=%d, body=%s", statusCode, string(respBody))
+		response.HTTPFail(r, 500001, "FastGPT API 调用失败")
+		return
+	}
+
+	c.ResponseWriter().Header().Set("Content-Type", "application/json")
+	c.ResponseWriter().WriteHeader(http.StatusOK)
+	c.ResponseWriter().Write(respBody)
+}
+
+// HandleOutLinkDelHistory 外链删除聊天历史
+// 路由: DELETE /api/core/chat/delHistory?appId=xxx&chatId=xxx&shareId=xxx&outLinkUid=xxx
+func HandleOutLinkDelHistory(c flamego.Context, r flamego.Render, authInfo auth.Info) {
+	fastgptAppId := c.Query("FastgptAppId")
+	chatId := c.Query("chatId")
+	shareId := c.Query("shareId")
+	outLinkUid := c.Query("outLinkUid")
+
+	if shareId == "" || chatId == "" {
+		response.HTTPFail(r, 400001, "缺少必要参数 shareId 或 chatId")
+		return
+	}
+
+	// 根据 shareId 获取对应的 API Key
+	app, err := dao.FastgptApp.GetAppByID(fastgptAppId)
+	if err != nil {
+		response.HTTPFail(r, 400013, "应用不存在或已禁用")
+		return
+	}
+
+	// 构建查询参数
+	queryParams := map[string]string{
+		"chatId":  chatId,
+		"shareId": shareId,
+		"appId":   app.AppId,
+	}
+	if outLinkUid != "" {
+		queryParams["outLinkUid"] = outLinkUid
+	}
+
+	respBody, statusCode, err := getFastGPTClient(app.APIKey).ForwardRequestWithQuery("DELETE", "/core/chat/delHistory", queryParams)
+	if err != nil {
+		response.ServiceErr(r, err)
+		return
+	}
+
+	if statusCode != http.StatusOK {
 		response.HTTPFail(r, 500001, "FastGPT API 调用失败")
 		return
 	}

@@ -51,18 +51,28 @@ const parseMessageValue = (value) => {
   }).filter(Boolean);
 };
 
-// 引用列表组件
-const ReferenceList = ({ quotes }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [expanded, setExpanded] = useState(false);
+// 辅助函数
+const getSafeContent = (val) => {
+    if (typeof val === 'string') return val;
+    if (typeof val === 'number') return String(val);
+    if (!val) return '';
+    if (typeof val === 'object') {
+        if (val.value) return getSafeContent(val.value);
+        if (val.content) return getSafeContent(val.content);
+        return '';
+    }
+    return String(val);
+};
+
+// 引用详情抽屉
+const ReferenceDrawer = ({ isOpen, onClose, quotes = [], startIndex = 0 }) => {
+  const [currentIndex, setCurrentIndex] = useState(startIndex);
+  
+  useEffect(() => {
+      setCurrentIndex(startIndex);
+  }, [startIndex, isOpen]);
 
   if (!quotes || quotes.length === 0) return null;
-
-  const handleOpenQuote = (index) => {
-    setCurrentIndex(index);
-    setIsOpen(true);
-  };
 
   const handlePrev = () => {
      setCurrentIndex(prev => (prev > 0 ? prev - 1 : quotes.length - 1));
@@ -72,72 +82,17 @@ const ReferenceList = ({ quotes }) => {
      setCurrentIndex(prev => (prev < quotes.length - 1 ? prev + 1 : 0));
   };
 
-  const getSafeContent = (val) => {
-      if (typeof val === 'string') return val;
-      if (typeof val === 'number') return String(val);
-      if (!val) return '';
-      if (typeof val === 'object') {
-          // Handle object with value property (e.g. from some parsers or highlighters)
-          if (val.value) return getSafeContent(val.value);
-          // Handle object with content property
-          if (val.content) return getSafeContent(val.content);
-          // Fallback to empty string to prevent React crash
-          return '';
-      }
-      return String(val);
-  };
-
-  const currentQuote = quotes[currentIndex];
-  const visibleQuotes = expanded ? quotes : quotes.slice(0, 1);
-  const safeSourceName = getSafeContent(currentQuote?.sourceName);
-  const safeTitle = getSafeContent(currentQuote?.title);
-  const safeBody = getSafeContent(currentQuote?.q || currentQuote?.content || '无内容');
+  const currentQuote = quotes[currentIndex] || {};
+  const safeSourceName = getSafeContent(currentQuote.sourceName);
+  const safeTitle = getSafeContent(currentQuote.title);
+  const safeBody = getSafeContent(currentQuote.q || currentQuote.content || '无内容');
 
   return (
-    <div style={{ marginTop: 8 }}>
-       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-           {visibleQuotes.map((q, idx) => (
-              <div 
-                 key={idx} 
-                 style={{ 
-                    cursor: 'pointer', 
-                    padding: '8px', 
-                    background: '#f9f9f9', 
-                    borderRadius: 4, 
-                    border: '1px solid #eee',
-                    display: 'flex',
-                    alignItems: 'center',
-                    fontSize: 12
-                 }}
-                 onClick={() => handleOpenQuote(idx)}
-              >
-                  <FileTextOutlined style={{ marginRight: 8, color: '#1890ff' }} />
-                  <Typography.Text ellipsis style={{ flex: 1, color: '#1890ff' }}>
-                      {getSafeContent(q.sourceName) || `Reference ${idx + 1}`}
-                  </Typography.Text>
-              </div>
-           ))}
-           {quotes.length > 1 && (
-               <div 
-                 style={{ 
-                    fontSize: 12, 
-                    color: '#999', 
-                    cursor: 'pointer', 
-                    paddingLeft: 8,
-                    marginTop: 4
-                 }}
-                 onClick={() => setExpanded(!expanded)}
-               >
-                   {expanded ? '收起引用' : `查看全部 ${quotes.length} 条引用`}
-               </div>
-           )}
-       </div>
-
        <Drawer
           title={null}
           placement="right"
           closable={false}
-          onClose={() => setIsOpen(false)}
+          onClose={onClose}
           open={isOpen}
           width={600}
           styles={{ body: { padding: 0 }, header: { display: 'none' } }}
@@ -150,14 +105,13 @@ const ReferenceList = ({ quotes }) => {
                       {safeSourceName || "引用详情"}
                   </Typography.Text>
               </div>
-              <Button type="text" icon={<CloseOutlined />} onClick={() => setIsOpen(false)} />
+              <Button type="text" icon={<CloseOutlined />} onClick={onClose} />
           </div>
 
           {/* Navigation & Meta Bar */}
            <div style={{ padding: '12px 24px', background: '#fafafa', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                <Space>
                    <Tag>引用 {currentIndex + 1} / {quotes.length}</Tag>
-                   {/* 假设有 score 字段，如果没有则不显示 */}
                    {currentQuote?.score && <Tag color="green">综合排名: {getSafeContent(currentQuote.score)}</Tag>}
                </Space>
                
@@ -217,6 +171,60 @@ const ReferenceList = ({ quotes }) => {
               </ReactMarkdown>
            </div>
        </Drawer>
+  );
+};
+
+// 引用列表组件
+const ReferenceList = ({ quotes, onOpen }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!quotes || quotes.length === 0) return null;
+
+  const handleOpenQuote = (index) => {
+    onOpen && onOpen(quotes, index);
+  };
+
+  const visibleQuotes = expanded ? quotes : quotes.slice(0, 1);
+
+  return (
+    <div style={{ marginTop: 8 }}>
+       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+           {visibleQuotes.map((q, idx) => (
+              <div 
+                 key={idx} 
+                 style={{ 
+                    cursor: 'pointer', 
+                    padding: '8px', 
+                    background: '#f9f9f9', 
+                    borderRadius: 4, 
+                    border: '1px solid #eee',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: 12
+                 }}
+                 onClick={() => handleOpenQuote(idx)}
+              >
+                  <FileTextOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                  <Typography.Text ellipsis style={{ flex: 1, color: '#1890ff' }}>
+                      {getSafeContent(q.sourceName) || `Reference ${idx + 1}`}
+                  </Typography.Text>
+              </div>
+           ))}
+           {quotes.length > 1 && (
+               <div 
+                 style={{ 
+                    fontSize: 12, 
+                    color: '#999', 
+                    cursor: 'pointer', 
+                    paddingLeft: 8,
+                    marginTop: 4
+                 }}
+                 onClick={() => setExpanded(!expanded)}
+               >
+                   {expanded ? '收起引用' : `查看全部 ${quotes.length} 条引用`}
+               </div>
+           )}
+       </div>
     </div>
   );
 };
@@ -275,7 +283,7 @@ const InteractiveOptions = ({ interactive, onSelect }) => {
 
 
 // 打字机效果的 Markdown 渲染组件
-const TypingMarkdown = ({ content, isTyping, style = {} }) => {
+const TypingMarkdown = ({ content, isTyping, style = {}, sourceList = [], onReferenceClick }) => {
   const [displayedContent, setDisplayedContent] = useState(isTyping ? '' : content);
   const [showCursor, setShowCursor] = useState(true);
   const contentRef = useRef(content);
@@ -349,6 +357,40 @@ const TypingMarkdown = ({ content, isTyping, style = {} }) => {
               ul: ({node, ...props}) => <ul {...props} style={{ paddingLeft: 20, marginBottom: '0.5em' }} />,
               ol: ({node, ...props}) => <ol {...props} style={{ paddingLeft: 20, marginBottom: '0.5em' }} />,
               li: ({node, ...props}) => <li {...props} style={{ marginBottom: 4 }} />,
+              a: ({node, href, children, ...props}) => {
+                  if (href === 'CITE') {
+                      const id = String(children);
+                      let index = -1;
+                      if (sourceList && sourceList.length > 0) {
+                          // Try exact match id or _id
+                          index = sourceList.findIndex(item => item.id === id || item._id === id);
+                      }
+                      
+                      if (index !== -1) {
+                         const displayIndex = index + 1;
+                         return (
+                            <sup 
+                               style={{ 
+                                  color: '#1890ff', 
+                                  cursor: 'pointer', 
+                                  fontWeight: 'bold',
+                                  marginLeft: 2,
+                                  fontSize: '0.75em'
+                               }}
+                               onClick={(e) => {
+                                   e.stopPropagation();
+                                   if (onReferenceClick) {
+                                       onReferenceClick(index);
+                                   }
+                               }}
+                            >
+                               [{displayIndex}]
+                            </sup>
+                         );
+                      }
+                  }
+                  return <a href={href} {...props}>{children}</a>;
+              },
               code: ({node, inline, className, children, ...props}) => {
                   const match = /language-(\w+)/.exec(className || '');
                   return !inline ? (
@@ -446,6 +488,20 @@ const Chat = () => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef(null);
   const ignoreLoadRef = useRef(null); // 用于标记跳过下一次 loadMessages 的 chatId
+  
+  const [referenceDrawerState, setReferenceDrawerState] = useState({
+      open: false,
+      quotes: [],
+      index: 0
+  });
+
+  const openReferenceDrawer = (quotes, index) => {
+      setReferenceDrawerState({
+          open: true,
+          quotes: quotes || [],
+          index: index || 0
+      });
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -572,7 +628,7 @@ const Chat = () => {
 
   const handleDeleteHistory = async (chatId) => {
     try {
-      await delHistory(id, chatId);
+      await delHistory(id, chatId, shareId, outLinkUid);
       message.success('删除成功');
       setHistories(prev => prev.filter(h => h.chatId !== chatId));
       if (activeChatId === chatId) {
@@ -857,7 +913,12 @@ const Chat = () => {
 
              if (item.content || isTyping) {
                  currentNode = (
-                    <TypingMarkdown content={item.content || ''} isTyping={isTyping} />
+                    <TypingMarkdown 
+                        content={item.content || ''} 
+                        isTyping={isTyping} 
+                        sourceList={msg.totalQuoteList}
+                        onReferenceClick={(idx) => openReferenceDrawer(msg.totalQuoteList, idx)}
+                    />
                  );
              }
         }
@@ -900,7 +961,10 @@ const Chat = () => {
                               <Typography.Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>
                                   参考资料
                               </Typography.Text>
-                              <ReferenceList quotes={msg.totalQuoteList} />
+                              <ReferenceList 
+                                  quotes={msg.totalQuoteList} 
+                                  onOpen={(quotes, idx) => openReferenceDrawer(quotes, idx)}
+                              />
                           </div>
                       );
                   }
@@ -1070,6 +1134,12 @@ const Chat = () => {
           )}
         </div>
       </div>
+      <ReferenceDrawer
+          isOpen={referenceDrawerState.open}
+          quotes={referenceDrawerState.quotes}
+          startIndex={referenceDrawerState.index}
+          onClose={() => setReferenceDrawerState(prev => ({ ...prev, open: false }))}
+      />
     </XProvider>
   );
 };

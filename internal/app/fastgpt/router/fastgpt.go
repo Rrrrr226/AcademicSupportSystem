@@ -17,6 +17,9 @@ func AppFastgptInit(e *flamego.Flame) {
 	e.Group("/api", func() {
 		// ![](/api/system/img/6893942d1d6b742a7c4aac92.jpeg)
 		e.Get("/system/img/{imageId}", handler.HandleGetImage)
+
+		// 外链删除聊天历史
+		e.Delete("/core/chat/delHistory", web.Authorization, handler.HandleOutLinkDelHistory)
 	})
 	e.Group("/fastgpt", func() {
 		// Chat 接口 - 非流式
@@ -28,7 +31,6 @@ func AppFastgptInit(e *flamego.Flame) {
 		e.Group("/core/chat", func() {
 			e.Post("/history/getHistories", binding.JSON(dto.GetHistoriesRequest{}), handler.HandleGetHistories)
 			e.Post("/history/updateHistory", binding.JSON(dto.UpdateHistoryRequest{}), handler.HandleUpdateHistory)
-			e.Delete("/history/delHistory", handler.HandleDelHistory)
 			e.Post("/getPaginationRecords", binding.JSON(dto.GetPaginationRecordsRequest{}), handler.HandleGetPaginationRecords)
 			e.Post("/quote/getCollectionQuote", binding.JSON(dto.GetCollectionQuoteRequest{}), handler.HandleGetCollectionQuote)
 			e.Get("/outLink/init", handler.HandleOutLinkInit)

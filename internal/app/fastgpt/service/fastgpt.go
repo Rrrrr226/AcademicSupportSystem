@@ -122,10 +122,15 @@ func (c *FastGPTClient) ForwardStreamRequest(method, path string, body interface
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Connection", "keep-alive")
 
-	// 发送请求，使用无超时的客户端
+	// 流式客户端配置
 	streamClient := &http.Client{
 		Timeout: 0, // 流式请求不设置超时
+		Transport: &http.Transport{
+			DisableCompression: true, // 禁用压缩，确保数据实时到达
+		},
 	}
 	resp, err := streamClient.Do(req)
 	if err != nil {
