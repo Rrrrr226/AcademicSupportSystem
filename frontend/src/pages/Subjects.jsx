@@ -33,11 +33,10 @@ const Subjects = () => {
 
     getSubjectLink(staffId)
       .then(res => {
-        let subjects = res.data?.data?.subjects;
+        let subjects = res.data?.data?.subjects || res.data?.subjects;
         if (Array.isArray(subjects)) {
           subjects = subjects.map(item => ({
-            subject_name: item.subject_name || item.name || item.SubjectName,
-            subject_link: item.subject_link || item.link || item.SubjectLink,
+            subject_name: item.app_name || item.subject_name || item.name || item.SubjectName,
             app_id: item.app_id,              // 我们系统的 ID
             fastgpt_app_id: item.fastgpt_app_id, // FastGPT 的 AppId
             share_id: item.share_id
@@ -64,10 +63,8 @@ const Subjects = () => {
           title: item.subject_name
         }
       });
-    } else if (item.subject_link) {
-      window.open(item.subject_link, '_blank');
     } else {
-      message.warning('无效链接');
+      message.warning('无效应用信息');
     }
   };
 
@@ -159,19 +156,15 @@ const Subjects = () => {
                   onClick={() => handleSubjectClick(item)}
                 >
                   <div style={{ 
-                    width: 64, height: 64, borderRadius: '50%', background: item.subject_link ? '#e6f7ff' : '#f5f5f5', 
+                    width: 64, height: 64, borderRadius: '50%', background: '#e6f7ff', 
                     display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16
                   }}>
-                    <BookOutlined style={{ fontSize: 28, color: item.subject_link ? '#1890ff' : '#bfbfbf' }} />
+                    <BookOutlined style={{ fontSize: 28, color: '#1890ff' }} />
                   </div>
                   <Title level={5} style={{ marginBottom: 8, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.subject_name || '未命名学科'}
                   </Title>
-                  {item.subject_link ? (
-                    <Text type="secondary" style={{ fontSize: 12 }}>点击访问课程主页 <ArrowRightOutlined /></Text>
-                  ) : (
-                    <Text type="secondary" style={{ fontSize: 12 }}>暂无链接</Text>
-                  )}
+                  <Text type="secondary" style={{ fontSize: 12 }}>点击进入学习 <ArrowRightOutlined /></Text>
                 </Card>
               </Col>
             ))}

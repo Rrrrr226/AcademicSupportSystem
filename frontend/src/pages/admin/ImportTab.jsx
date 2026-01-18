@@ -27,6 +27,28 @@ const ImportTab = () => {
     return false; // 阻止默认上传行为
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await downloadImportTemplate(token);
+      
+      // 创建 Blob URL 并下载
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'subject_import_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      
+      // 清理
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('下载模板失败:', error);
+      message.error('下载模板失败');
+    }
+  };
+
   const uploadProps = {
     name: 'file',
     multiple: false,
@@ -59,7 +81,7 @@ const ImportTab = () => {
         <Button 
           type="default" 
           icon={<DownloadOutlined />}
-          onClick={() => window.open(downloadImportTemplate(), '_blank')}
+          onClick={handleDownloadTemplate}
         >
           下载导入模板
         </Button>

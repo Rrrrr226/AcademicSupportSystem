@@ -1,6 +1,8 @@
 package dto
 
-import "HelpStudent/internal/app/subject/model"
+import (
+	"HelpStudent/internal/app/subject/model"
+)
 
 type AddSubjectReq struct {
 	SubjectName string `json:"subject_name"`
@@ -19,7 +21,7 @@ type UpdateSubjectReq struct {
 }
 
 type SubjectItem struct {
-	model.Subject
+	AppName      string `json:"app_name"`
 	AppID        string `json:"app_id"`         // 我们系统的 ID
 	FastgptAppId string `json:"fastgpt_app_id"` // FastGPT 的应用 ID
 	ShareId      string `json:"share_id"`
@@ -51,6 +53,6 @@ type AddUserSubjectReq struct {
 
 type UpdateUserSubjectReq struct {
 	ID          string `json:"id"`
-	StaffId     string `json:"staff_id"`
-	SubjectName string `json:"subject_name"`
+	StaffId     string `json:"staffId"`
+	SubjectName string `json:"subjectName"`
 }

@@ -16,7 +16,6 @@ import (
 	"strconv"
 
 	"github.com/flamego/flamego"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -38,7 +37,6 @@ func GetSubjectLink(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 	var userModel userModel.Users
 	if err := userDAO.Users.Where("staff_id = ?", staffId).First(&userModel).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			logx.ServiceLogger.Error("staff_id not found", zap.String("staff_id", staffId))
 			response.ServiceErr(r, "staff_id not found")
 			return
 		}
@@ -49,94 +47,35 @@ func GetSubjectLink(r flamego.Render, c flamego.Context, authInfo auth.Info) {
 	// 从 user_subjects 表获取用户的科目列表
 	subjectNames, err := dao.Subject.GetUserSubjects(staffId)
 	if err != nil {
-		logx.SystemLogger.Errorw("获取用户科目失败",
-			zap.String("staffId", staffId),
-			zap.Error(err))
 		response.ServiceErr(r, fmt.Sprintf("获取用户科目失败: %v", err))
 		return
 	}
-
-	logx.SystemLogger.Infow("用户科目数据",
-		zap.String("staffId", staffId),
-		zap.Any("subjectNames", subjectNames))
 
 	if len(subjectNames) == 0 {
 		response.HTTPSuccess(r, dto.GetSubjectResp{})
 		return
 	}
 
-	logx.SystemLogger.Infow("Attempting to get links by names",
-		zap.String("staffId", staffId),
-		zap.Any("subjectNames", subjectNames))
-
-	linkMap, err := dao.Subject.GetLinksByNames(subjectNames)
-	if err != nil {
-		logx.SystemLogger.Errorw("Failed to get links by names from DAO",
-			zap.String("staffId", staffId),
-			zap.Any("subjectNames", subjectNames),
-			zap.Error(err))
-		response.ServiceErr(r, fmt.Sprintf("获取科目链接失败: %v", err))
-		return
-	}
-
-	logx.SystemLogger.Infow("LinkMap result",
-		zap.String("staffId", staffId),
-		zap.Any("linkMap", linkMap))
-
-	var result []model.Subject
-	for _, name := range subjectNames {
-		if link, exists := linkMap[name]; exists {
-			result = append(result, model.Subject{
-				SubjectName: name,
-				SubjectLink: link,
-			})
+	var apps []fastgptModel.FastgptApp
+	if fastgptDAO.FastgptApp != nil {
+		if err := fastgptDAO.FastgptApp.Where("app_name IN ?", subjectNames).Find(&apps).Error; err != nil {
+			response.ServiceErr(r, err)
+			return
 		}
 	}
 
-	var finalResult []dto.SubjectItem
-	appMap := make(map[string]string)
-	fastgptAppIdMap := make(map[string]string)
-	shareIdMap := make(map[string]string)
-
-	if fastgptDAO.FastgptApp != nil && len(result) > 0 {
-		var appNames []string
-		for _, s := range result {
-			appNames = append(appNames, s.SubjectName)
-		}
-		var apps []fastgptModel.FastgptApp
-		if err := fastgptDAO.FastgptApp.Where("app_name IN ?", appNames).Find(&apps).Error; err == nil {
-			for _, app := range apps {
-				appMap[app.AppName] = app.ID
-				fastgptAppIdMap[app.AppName] = app.AppId
-				shareIdMap[app.AppName] = app.ShareId
-			}
-		} else {
-			logx.SystemLogger.Errorw("Failed to fetch fastgpt apps", zap.Error(err))
-		}
+	var subjects []dto.SubjectItem
+	for _, a := range apps {
+		var subject dto.SubjectItem
+		subject.ShareId = a.ShareId
+		subject.AppName = a.AppName
+		subject.AppID = a.ID
+		subject.FastgptAppId = a.AppId
+		subjects = append(subjects, subject)
 	}
-
-	for _, s := range result {
-		item := dto.SubjectItem{
-			Subject: s,
-		}
-		if appId, ok := appMap[s.SubjectName]; ok {
-			item.AppID = appId
-		}
-		if fastgptAppId, ok := fastgptAppIdMap[s.SubjectName]; ok {
-			item.FastgptAppId = fastgptAppId
-		}
-		if shareId, ok := shareIdMap[s.SubjectName]; ok {
-			item.ShareId = shareId
-		}
-		finalResult = append(finalResult, item)
-	}
-
-	logx.SystemLogger.Infow("Final result before response",
-		zap.String("staffId", staffId),
-		zap.Any("result", finalResult))
 
 	response.HTTPSuccess(r, dto.GetSubjectResp{
-		Subjects: finalResult,
+		Subjects: subjects,
 	})
 }
 
@@ -492,7 +431,6 @@ func UpdateUserSubjectHandler(r flamego.Render, c flamego.Context, req dto.Updat
 
 	// 更新记录
 	if err := dao.Subject.Save(&userSubject).Error; err != nil {
-		logx.SystemLogger.CtxError(c.Request().Context(), err)
 		response.ServiceErr(r, err)
 		return
 	}

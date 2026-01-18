@@ -139,10 +139,14 @@ export const importStudentSubjects = (file, token) => {
 
 /**
  * 下载学生科目导入模板
- * @returns {string} 模板下载地址
+ * @param {string} token - 管理员 token
+ * @returns {Promise} 模板下载请求
  */
-export const downloadImportTemplate = () => {
-  return `${BASE_URL}/managers/import/template`;
+export const downloadImportTemplate = (token) => {
+  return axios.get(`${BASE_URL}/managers/import/template`, {
+    headers: { Authorization: `Bearer ${token}` },
+    responseType: 'blob'
+  });
 };
 
 /**

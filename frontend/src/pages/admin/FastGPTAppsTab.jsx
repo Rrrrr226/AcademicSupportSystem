@@ -215,8 +215,9 @@ const FastGPTAppsTab = () => {
           <Form.Item
             name="shareId"
             label="ShareId"
+            rules={[{ required: true, message: '请输入 FastGPT ShareId' }]}
           >
-            <Input placeholder="FastGPT 分享链接ID（可选）" />
+            <Input placeholder="FastGPT 分享链接ID" />
           </Form.Item>
           <Form.Item
             name="apiKey"
